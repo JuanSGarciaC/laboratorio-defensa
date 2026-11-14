@@ -79,7 +79,7 @@ button.primary:disabled { opacity: 0.6; }
 
 /* ---------- Carriles: el mismo ataque contra las dos versiones ---------- */
 .carriles { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
-.carril { --c: var(--alta); display: grid; gap: 1.4rem; padding: 1.7rem; border: 1px solid var(--line); border-top: 3px solid var(--c); border-radius: 18px; background: var(--surface); }
+.carril { --c: var(--alta); display: grid; gap: 1.4rem; padding: 1.7rem; border: 1px solid var(--line); border-radius: 18px; background: var(--surface); box-shadow: inset 0 3px 0 -1px var(--c); }
 .carril-endurecida { --c: var(--auto); }
 .carril header { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; flex-wrap: wrap; }
 .carril h3 { font-size: 1.35rem; }
