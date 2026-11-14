@@ -1,0 +1,8 @@
+# Levanta el laboratorio en http://localhost:8095 (otro puerto: LAB_PORT).
+# El objetivo vulnerable no queda accesible desde fuera; para probarlo a mano con curl, OBJETIVO_EXPUESTO=true.
+services:
+  app:
+    build: .
+    ports: ["${LAB_PORT:-8095}:8000"]
+    environment:
+      OBJETIVO_EXPUESTO: "${OBJETIVO_EXPUESTO:-false}"
