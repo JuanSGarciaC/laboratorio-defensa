@@ -28,13 +28,13 @@ def crea_app() -> FastAPI:
     def limitar(request: Request) -> None:
         ip = (cabecera_ip and request.headers.get(cabecera_ip)) or (request.client.host if request.client else "?")
         ahora = time.monotonic()
-        for clave in [k for k, v in usos.items() if ahora - v[-1] >= VENTANA]:
+        for clave in [k for k, v in usos.items() if not v or ahora - v[-1] >= VENTANA]:
             del usos[clave]  # visitantes inactivos: el diccionario no crece sin fin
         cola = usos.setdefault(ip, deque())
         while cola and ahora - cola[0] >= VENTANA:
             cola.popleft()
         if len(cola) >= limite:
-            espera = math.ceil(VENTANA - (ahora - cola[0]))
+            espera = math.ceil(VENTANA - (ahora - cola[0])) if cola else int(VENTANA)
             raise HTTPException(429, f"Demasiados lanzamientos. Espera {espera} s.", headers={"Retry-After": str(espera)})
         cola.append(ahora)
 

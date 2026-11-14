@@ -68,3 +68,9 @@ def test_objetivo_cerrado_por_defecto_y_abierto_con_la_variable(monkeypatch):
     assert TestClient(crea_app()).get("/objetivo/vulnerable/buscar", params={"q": "a"}).status_code == 404
     monkeypatch.setenv("OBJETIVO_EXPUESTO", "true")
     assert TestClient(crea_app()).get("/objetivo/vulnerable/buscar", params={"q": "Teclado"}).status_code == 200
+
+
+def test_limite_cero_rechaza_siempre_sin_romperse(monkeypatch):
+    monkeypatch.setenv("LIMITE_POR_MINUTO", "0")
+    c = TestClient(crea_app())
+    assert [c.post("/api/ataques/xss-reflejado/lanzar", params={"modo": "vulnerable"}).status_code for _ in range(2)] == [429, 429]

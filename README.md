@@ -141,7 +141,7 @@ curl "http://localhost:8000/objetivo/vulnerable/archivo?nombre=../secreto.txt"
 ## Pruebas
 
 ```powershell
-cd backend; pytest -q                      # 44 pruebas, ninguna toca la red
+cd backend; pytest -q                      # 45 pruebas, ninguna toca la red
 ```
 
 Cubren las tres rutas en los dos modos, que ningún modo lee fuera de `lab/` (rutas absolutas, de Windows, con byte
