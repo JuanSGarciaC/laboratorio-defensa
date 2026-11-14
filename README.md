@@ -3,8 +3,9 @@
 ![CI](https://github.com/JuanSGarciaC/laboratorio-defensa/actions/workflows/ci.yml/badge.svg)
 
 Una aplicación web pequeña escrita dos veces, **vulnerable** y **endurecida**, y un catálogo de ataques que se
-lanza con un botón. El lienzo muestra cada petición viajar hasta el objetivo y una prueba objetiva dice si el
-ataque consiguió lo que buscaba. La misma carga, el mismo botón: lo único que cambia es el código que la recibe.
+lanza con un botón **contra las dos a la vez**. Dos carriles en paralelo muestran cada petición viajar hasta su
+objetivo y una prueba objetiva dice si el ataque consiguió lo que buscaba. La misma carga, el mismo botón: lo único
+que cambia es el código que la recibe.
 
 ![Fuerza bruta contra la versión vulnerable y contra la endurecida](docs/img/fuerza-bruta.gif)
 
@@ -12,9 +13,11 @@ ataque consiguió lo que buscaba. La misma carga, el mismo botón: lo único que
 la cuenta se bloquea al quinto fallo y la contraseña correcta ya no sirve. Los pasos son los de la ejecución real;
 el ritmo es de presentación (la ejecución entera dura milisegundos).*
 
-| Inyección SQL contra la versión vulnerable | La misma carga contra la versión endurecida |
+![Inyección SQL contra las dos versiones, con la petición y la respuesta de cada una](docs/img/02-inyeccion-sql.png)
+
+| El mismo código, antes y después | Matriz de resultados |
 |---|---|
-| ![Inyección SQL, vulnerable](docs/img/02-inyeccion-sql-vulnerable.png) | ![Inyección SQL, endurecida](docs/img/03-inyeccion-sql-endurecida.png) |
+| ![Código vulnerable y endurecido](docs/img/03-codigo.png) | ![Matriz](docs/img/04-matriz.png) |
 
 ## Qué es y qué no es
 
@@ -90,8 +93,8 @@ flowchart LR
 | Dos rutas lado a lado en vez de un interruptor | Sin estado global: dos visitantes no se pisan | El modo va en la ruta, cosa que una aplicación real no haría |
 | Un objetivo nuevo por ejecución | El bloqueo de una ejecución no afecta a la siguiente | El bloqueo de cuentas vive en memoria y no sobrevive al lanzamiento |
 | Lo vulnerable está acotado | La inyección corre sobre una base de solo lectura; el recorrido de rutas no sale de `lab/` | Son vulnerabilidades reales con consecuencias de laboratorio |
-| El lienzo reproduce una ejecución ya terminada | La ejecución dura milisegundos y no se vería | Los pasos son reales; los tiempos, no |
-| Origen simulado (`203.0.113.0/24`, RFC 5737) | Prepara el bloqueo por origen de la siguiente entrega | En esta entrega solo se muestra |
+| Los carriles reproducen dos ejecuciones ya terminadas, a la par | Cada ejecución dura milisegundos y no se vería | Los pasos son reales; los tiempos, no. Cada versión corre contra su propio objetivo, sin estado compartido |
+| Origen simulado (`203.0.113.0/24`, RFC 5737) | Prepara el bloqueo por origen de la siguiente entrega | En esta entrega solo viaja en la respuesta de la API |
 | Contraseñas con `scrypt` en los dos modos | El fallo que se estudia en el login es la falta de límite de intentos | No hay sesiones ni segundo factor |
 | Límite de 30 lanzamientos por minuto y visitante | Una demo pública no debe poder saturarse con un bucle | Vive en memoria del proceso; la IP no se guarda en ningún otro sitio |
 
@@ -152,19 +155,19 @@ Extremo a extremo, en un navegador real:
 
 ```powershell
 docker compose up -d --build --wait
-uv run --with pytest --with playwright pytest e2e -q                 # 14 pruebas; en local, $env:BROWSER_CHANNEL = "msedge"
+uv run --with pytest --with playwright pytest e2e -q                 # 11 pruebas; en local, $env:BROWSER_CHANNEL = "msedge"
 uv run --with playwright --with pillow scripts/capturas.py           # regenera capturas y GIF
 ```
 
-Comprueban que el resultado del lienzo coincide con la API para cada ataque y modo, que la matriz del panel es la
-de la API, y que un fallo de la API o el límite de uso se muestran y dejan el botón utilizable.
+Comprueban que el resultado de cada carril coincide con la API para cada ataque, que la comparación petición a
+petición y el código de las dos versiones son los reales, que la matriz y la barra lateral son las de la API, y que un fallo de la API o el límite de uso se muestran y dejan el botón utilizable.
 
 ## Estructura
 
 ```text
 backend/app/        objetivo (rutas vulnerables y endurecidas), catalogo, lanzador, main (API), ataques.yaml, lab/
 backend/tests/      pruebas automáticas
-frontend/src/       panel React (App, Flow)
+frontend/src/       panel React (App, Carril)
 e2e/                pruebas en navegador
 scripts/            capturas.py: capturas y GIF
 docs/superpowers/   diseño y plan de esta entrega

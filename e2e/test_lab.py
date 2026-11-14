@@ -17,7 +17,8 @@ ATAQUES = {
     "recorrido-rutas": "Recorrido de rutas",
     "fuerza-bruta": "Fuerza bruta de login",
 }
-MODOS = {"vulnerable": "Vulnerable", "endurecida": "Endurecida"}
+MODOS = ("vulnerable", "endurecida")
+LANZAR = "Lanzar contra las dos"
 errores: list[str] = []
 
 
@@ -37,44 +38,61 @@ def page():
 def abrir(page: Page) -> None:
     page.unroute_all()
     page.goto(BASE)
-    expect(page.get_by_test_id("matriz")).to_be_visible()
+    expect(page.get_by_role("button", name=LANZAR)).to_be_enabled()
 
 
-def elegir(page: Page, ataque: str, modo: str) -> None:
-    page.get_by_role("button", name=ATAQUES[ataque]).click()
-    page.get_by_role("radio", name=MODOS[modo]).check()
+def matriz(page: Page) -> dict:
+    return {f["ataque"]: f for f in page.request.get(f"{BASE}/api/matriz").json()}
 
 
 @pytest.mark.parametrize("ataque", ATAQUES)
-@pytest.mark.parametrize("modo", MODOS)
-def test_cada_ataque_en_cada_modo_coincide_con_la_api(page: Page, ataque: str, modo: str):
+def test_cada_ataque_contra_las_dos_versiones_coincide_con_la_api(page: Page, ataque: str):
     abrir(page)
-    fila = next(f for f in page.request.get(f"{BASE}/api/matriz").json() if f["ataque"] == ataque)
-    elegir(page, ataque, modo)
-    expect(page.get_by_test_id("nodo-resultado")).to_have_attribute("data-activo", "false")
-    page.get_by_role("button", name="Lanzar").click()
-    expect(page.get_by_test_id("resultado")).to_have_text("El ataque tuvo éxito" if fila[modo] else "El ataque no tuvo éxito")
-    expect(page.get_by_test_id("nodo-resultado")).to_have_attribute("data-activo", "true")
-    expect(page.get_by_test_id("nodo-resultado")).to_contain_text("Éxito" if fila[modo] else "Sin éxito")
-    expect(page.get_by_role("button", name="Lanzar")).to_be_enabled()
+    fila = matriz(page)[ataque]
+    page.get_by_role("button", name=ATAQUES[ataque]).click()
+    for modo in MODOS:
+        expect(page.get_by_test_id(f"carril-{modo}")).to_have_attribute("data-estado", "reposo")
+    page.get_by_role("button", name=LANZAR).click()
+    for modo in MODOS:
+        expect(page.get_by_test_id(f"resultado-{modo}")).to_have_text("El ataque tuvo éxito" if fila[modo] else "El ataque no tuvo éxito")
+        expect(page.get_by_test_id(f"carril-{modo}")).to_have_attribute("data-estado", "exito" if fila[modo] else "fallo")
+    expect(page.get_by_role("button", name=LANZAR)).to_be_enabled()
 
 
-def test_la_fuerza_bruta_se_ve_peticion_a_peticion(page: Page):
+def test_la_fuerza_bruta_se_compara_peticion_a_peticion(page: Page):
     abrir(page)
-    elegir(page, "fuerza-bruta", "endurecida")
-    page.get_by_role("button", name="Lanzar").click()
-    expect(page.locator(".paso")).to_have_count(20)
-    expect(page.locator(".paso").nth(4)).to_have_text("401")
-    expect(page.locator(".paso").nth(5)).to_have_text("429")
-    expect(page.get_by_test_id("nodo-atacar")).to_contain_text("20 / 20")
+    page.get_by_role("button", name=ATAQUES["fuerza-bruta"]).click()
+    page.get_by_role("button", name=LANZAR).click()
+    endurecida, vulnerable = page.locator(".col-endurecida .paso"), page.locator(".col-vulnerable .paso")
+    expect(endurecida).to_have_count(20)
+    expect(endurecida.nth(4)).to_have_text("401")
+    expect(endurecida.nth(5)).to_have_text("429")
+    expect(vulnerable.nth(11)).to_have_text("200")
+    # Al terminar queda a la vista la petición que decidió el ataque, en las dos columnas.
+    expect(vulnerable.nth(11)).to_have_attribute("aria-pressed", "true")
+    expect(endurecida.nth(11)).to_have_attribute("aria-pressed", "true")
+    expect(page.locator(".col-endurecida pre").last).to_contain_text("Cuenta bloqueada")
 
 
-def test_la_matriz_del_panel_es_la_de_la_api(page: Page):
+def test_la_pestana_codigo_ensena_las_dos_versiones(page: Page):
     abrir(page)
+    page.get_by_role("button", name=ATAQUES["inyeccion-sql"]).click()
+    page.get_by_role("tab", name="Código").click()
+    expect(page.locator(".col-vulnerable pre")).to_contain_text("LIKE '%{q}%'")
+    expect(page.locator(".col-endurecida pre")).to_contain_text("LIKE ?")
+
+
+def test_la_matriz_y_la_barra_lateral_son_las_de_la_api(page: Page):
+    abrir(page)
+    api = matriz(page)
+    for ataque, f in api.items():
+        boton = page.get_by_role("button", name=ATAQUES[ataque])
+        expect(boton).to_contain_text("Vulnerable: " + ("entra" if f["vulnerable"] else "resiste"))
+        expect(boton).to_contain_text("Endurecida: " + ("entra" if f["endurecida"] else "resiste"))
+    page.get_by_role("tab", name="Matriz").click()
     filas = page.get_by_test_id("matriz").locator("tbody tr")
-    api = page.request.get(f"{BASE}/api/matriz").json()
     expect(filas).to_have_count(len(api))
-    for i, f in enumerate(api):
+    for i, f in enumerate(api.values()):
         texto = [f["nombre"], *("Tuvo éxito" if f[m] else "No tuvo éxito" for m in MODOS)]
         expect(filas.nth(i).locator("th, td")).to_have_text(texto)
 
@@ -82,17 +100,17 @@ def test_la_matriz_del_panel_es_la_de_la_api(page: Page):
 def test_error_de_la_api_rehabilita_el_boton(page: Page):
     abrir(page)
     page.route("**/lanzar*", lambda r: r.abort())
-    page.get_by_role("button", name="Lanzar").click()
+    page.get_by_role("button", name=LANZAR).click()
     expect(page.get_by_role("alert")).to_contain_text("No se pudo contactar con el laboratorio")
-    expect(page.get_by_role("button", name="Lanzar")).to_be_enabled()
+    expect(page.get_by_role("button", name=LANZAR)).to_be_enabled()
 
 
 def test_limite_de_uso_se_muestra(page: Page):
     abrir(page)
     page.route("**/lanzar*", lambda r: r.fulfill(status=429, json={"detail": "Demasiados lanzamientos. Espera 12 s."}))
-    page.get_by_role("button", name="Lanzar").click()
+    page.get_by_role("button", name=LANZAR).click()
     expect(page.get_by_role("alert")).to_have_text("Demasiados lanzamientos. Espera 12 s.")
-    expect(page.get_by_role("button", name="Lanzar")).to_be_enabled()
+    expect(page.get_by_role("button", name=LANZAR)).to_be_enabled()
 
 
 def test_el_objetivo_no_es_accesible(page: Page):
