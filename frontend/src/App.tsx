@@ -1,12 +1,12 @@
 import { useEffect, useState } from "react";
 import { getAtaques, getMatriz, lanzar } from "./api";
-import Flow, { type Estado } from "./Flow";
+import Carril, { NOMBRE } from "./Carril";
 import type { Ataque, Ejecucion, FilaMatriz, Modo, Paso } from "./types";
 
-const MODOS: { id: Modo; nombre: string }[] = [
-  { id: "vulnerable", nombre: "Vulnerable" },
-  { id: "endurecida", nombre: "Endurecida" },
-];
+const MODOS: Modo[] = ["vulnerable", "endurecida"];
+const PESTANAS = ["Peticiones", "Código", "Matriz"] as const;
+type Pestana = (typeof PESTANAS)[number];
+type Duelo = Record<Modo, Ejecucion>;
 
 function trackPointer(e: React.PointerEvent) {
   const el = (e.target as HTMLElement).closest<HTMLElement>(".glow");
@@ -27,10 +27,10 @@ export default function App() {
   const [ataques, setAtaques] = useState<Ataque[] | null>(null);
   const [matriz, setMatriz] = useState<FilaMatriz[]>([]);
   const [id, setId] = useState("");
-  const [modo, setModo] = useState<Modo>("vulnerable");
-  const [ej, setEj] = useState<Ejecucion | null>(null);
-  const [hechos, setHechos] = useState(0); // pasos ya reproducidos
-  const [elegido, setElegido] = useState<number | null>(null); // paso que el usuario quiere mirar
+  const [duelo, setDuelo] = useState<Duelo | null>(null);
+  const [hechos, setHechos] = useState(0); // peticiones ya reproducidas
+  const [elegido, setElegido] = useState<number | null>(null); // petición que el usuario quiere mirar
+  const [pestana, setPestana] = useState<Pestana>("Peticiones");
   const [pidiendo, setPidiendo] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -40,24 +40,27 @@ export default function App() {
       .catch((e: Error) => setError(e.message));
   }, []);
 
-  const total = ej?.pasos.length ?? 0;
+  const total = duelo ? Math.max(...MODOS.map((m) => duelo[m].pasos.length)) : 0;
   const ritmo = sinMovimiento() ? 0 : total > 8 ? 160 : 700;
-  const reproduciendo = !!ej && hechos < total;
+  const reproduciendo = !!duelo && hechos < total;
 
-  // Reproduce una ejecución ya terminada: los pasos son reales, el ritmo es de presentación.
+  // Reproduce dos ejecuciones ya terminadas, a la par: los pasos son reales, el ritmo es de presentación.
   useEffect(() => {
     if (!reproduciendo) return;
     const t = setTimeout(() => setHechos((h) => h + 1), ritmo);
     return () => clearTimeout(t);
   }, [reproduciendo, hechos, ritmo]);
 
-  const limpiar = () => { setEj(null); setHechos(0); setElegido(null); setError(null); };
+  const limpiar = () => { setDuelo(null); setHechos(0); setElegido(null); setError(null); };
 
   async function onLanzar() {
     limpiar();
     setPidiendo(true);
     try {
-      setEj(await lanzar(id, modo));
+      // La misma carga contra las dos versiones.
+      const [vulnerable, endurecida] = await Promise.all(MODOS.map((m) => lanzar(id, m)));
+      setDuelo({ vulnerable, endurecida });
+      setPestana("Peticiones");
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -67,122 +70,140 @@ export default function App() {
 
   if (!ataques) {
     return (
-      <main className="main">
+      <main className="vacio">
         {error ? <><h1>No se pudo cargar el laboratorio</h1><p className="error" role="alert">{error}</p></> : <p className="muted">Cargando…</p>}
       </main>
     );
   }
   const ataque = ataques.find((a) => a.id === id);
-  if (!ataque) return <main className="main"><p className="muted">El catálogo está vacío.</p></main>;
+  if (!ataque) return <main className="vacio"><p className="muted">El catálogo está vacío.</p></main>;
 
-  const fin = !!ej && hechos >= total;
-  const estado: Estado = !ej ? "reposo" : !fin ? "en-curso" : ej.exito ? "exito" : "fallo";
-  const ultimo = ej && hechos > 0 ? ej.pasos[hechos - 1] : null;
-  const decisivo = ej?.pasos.find((p) => p.cumple) ?? null;
-  const visto = ej ? (elegido != null ? ej.pasos[elegido] : fin ? decisivo ?? ultimo : ultimo) : null;
   const ocupado = pidiendo || reproduciendo;
+  const fin = !!duelo && !reproduciendo;
+  // Petición a la vista: la elegida; si no, la que decidió el ataque al terminar o la última reproducida.
+  const decisiva = duelo ? MODOS.flatMap((m) => duelo[m].pasos.filter((p) => p.cumple).map((p) => p.n - 1))[0] : undefined;
+  const vista = elegido ?? (fin ? decisiva ?? total - 1 : hechos - 1);
 
   return (
     <div className="shell" onPointerMove={trackPointer}>
-      <header className="top">
+      <aside className="lateral">
         <div className="brand">
           <h1>Laboratorio de defensa</h1>
           <p>Ataques reales contra una aplicación propia. Ninguna petición sale de este servidor.</p>
         </div>
-      </header>
+
+        <div>
+          <h2 className="eyebrow" id="h-ataques">Ataque</h2>
+          <div className="ataques" role="group" aria-labelledby="h-ataques">
+            {ataques.map((a) => {
+              const fila = matriz.find((f) => f.ataque === a.id);
+              return (
+                <button key={a.id} className="ataque glow" aria-pressed={a.id === id} disabled={ocupado} onClick={() => { setId(a.id); limpiar(); }}>
+                  <strong>{a.nombre}</strong>
+                  <span className="etiquetas">{a.owasp.split(" ")[0]} · ATT&amp;CK {a.attack}</span>
+                  {fila && (
+                    <span className="marcador">
+                      <span className={fila.vulnerable ? "v-exito" : "v-fallo"}>Vulnerable: {fila.vulnerable ? "entra" : "resiste"}</span>
+                      <span className={fila.endurecida ? "v-exito" : "v-fallo"}>Endurecida: {fila.endurecida ? "entra" : "resiste"}</span>
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="accion">
+          <button className="primary" onClick={() => void onLanzar()} disabled={ocupado}>{ocupado ? "Lanzando…" : "Lanzar contra las dos"}</button>
+          <p className="muted">La misma carga, a la vez, contra la versión vulnerable y la endurecida.</p>
+        </div>
+      </aside>
 
       <main className="main">
-        <section className="controles" aria-label="Elegir ataque">
-          <div className="ataques" role="group" aria-label="Ataque">
-            {ataques.map((a) => (
-              <button key={a.id} className="ataque glow" aria-pressed={a.id === id} disabled={ocupado} onClick={() => { setId(a.id); limpiar(); }}>
-                <strong>{a.nombre}</strong>
-                <span className="chips"><span className="chip">{a.owasp}</span><span className="chip">ATT&amp;CK {a.attack}</span></span>
+        <header className="cabecera">
+          <h2>{ataque.nombre}</h2>
+          <p className="muted descripcion">{ataque.descripcion}</p>
+          <p className="chips"><span className="chip">{ataque.owasp}</span><span className="chip">MITRE ATT&amp;CK {ataque.attack}</span></p>
+        </header>
+        {error && <p className="error" role="alert">{error}</p>}
+
+        <div className="carriles">
+          {MODOS.map((m) => <Carril key={m} modo={m} ataque={ataque} ej={duelo?.[m] ?? null} hechos={hechos} ritmo={ritmo} />)}
+        </div>
+
+        <section className="detalle">
+          <div className="tabs" role="tablist" aria-label="Detalle">
+            {PESTANAS.map((p) => (
+              <button key={p} role="tab" id={`tab-${p}`} aria-selected={pestana === p} aria-controls="panel-detalle" onClick={() => setPestana(p)}>
+                {p}{p === "Peticiones" && duelo ? ` · ${total}` : ""}
               </button>
             ))}
           </div>
-          <div className="lanzar">
-            <fieldset className="modos">
-              <legend>Modo</legend>
-              {MODOS.map((m) => (
-                <label key={m.id} className={`modo modo-${m.id}`}>
-                  <input type="radio" name="modo" checked={modo === m.id} disabled={ocupado} onChange={() => { setModo(m.id); limpiar(); }} />
-                  {m.nombre}
-                </label>
-              ))}
-            </fieldset>
-            <button className="primary" onClick={() => void onLanzar()} disabled={ocupado}>{ocupado ? "Lanzando…" : "Lanzar"}</button>
-          </div>
-        </section>
-        <p className="muted descripcion">{ataque.descripcion}</p>
-        {error && <p className="error" role="alert">{error}</p>}
 
-        <Flow ataque={ataque} modo={modo} estado={estado} hechos={hechos} total={ej ? total : ataque.n_peticiones} ultimo={ultimo} ritmo={ritmo} />
-
-        <div className="veredicto" aria-live="polite">
-          {fin && ej && (
-            <p className={ej.exito ? "v-exito" : "v-fallo"}>
-              <strong data-testid="resultado">{ej.exito ? "El ataque tuvo éxito" : "El ataque no tuvo éxito"}</strong>
-              {decisivo ? ` en la petición ${decisivo.n} de ${total}.` : ` tras ${total} ${total === 1 ? "petición" : "peticiones"}.`}{" "}
-              <span className="muted">Origen simulado {ej.origen}.</span>
-            </p>
-          )}
-        </div>
-
-        {ej && hechos > 0 && (
-          <section className="panel glow" aria-labelledby="h-pasos">
-            <div className="panel-head">
-              <h3 id="h-pasos">Peticiones</h3>
-              <span className="muted">Rojo: la respuesta cumple la prueba de éxito del ataque.</span>
-            </div>
-            <div className="pasos">
-              {ej.pasos.slice(0, hechos).map((p, i) => (
-                <button key={p.n} className={`paso${p.cumple ? " cumple" : ""}`} aria-pressed={visto?.n === p.n} onClick={() => setElegido(i)}
-                  aria-label={`Petición ${p.n}: respuesta ${p.estado}${p.cumple ? ", cumple la prueba de éxito" : ""}`}>
-                  {p.estado}
-                </button>
-              ))}
-            </div>
-            {visto && (
-              <div className="split">
-                <div><h4>Petición {visto.n}</h4><pre>{peticion(visto, ej.modo)}</pre></div>
-                <div><h4>Respuesta · {visto.estado}</h4><pre>{visto.respuesta}</pre></div>
-              </div>
-            )}
-          </section>
-        )}
-
-        <section className="panel glow" aria-labelledby="h-codigo">
-          <div className="panel-head">
-            <h3 id="h-codigo">El mismo código, antes y después</h3>
-            <span className="muted">Es el código que se ejecuta, leído del propio programa.</span>
-          </div>
-          <div className="split">
-            {MODOS.map((m) => (
-              <div key={m.id} className={`codigo modo-${m.id}${modo === m.id ? " activo" : ""}`}>
-                <h4>{m.nombre}</h4>
-                <pre>{ataque.codigo[m.id]}</pre>
+          <div className="panel glow" role="tabpanel" id="panel-detalle" aria-labelledby={`tab-${pestana}`}>
+            {pestana === "Peticiones" && (!duelo || hechos === 0 ? (
+              <p className="muted hueco">Lanza el ataque para ver cada petición y lo que respondió cada versión.</p>
+            ) : (
+              <div className="dos">
+                {MODOS.map((m) => {
+                  const pasos = duelo[m].pasos.slice(0, hechos);
+                  const p = pasos[Math.min(vista, pasos.length - 1)];
+                  return (
+                    <div key={m} className={`columna col-${m}`}>
+                      <h4>{NOMBRE[m]}</h4>
+                      <div className="pasos">
+                        {pasos.map((x, i) => (
+                          <button key={x.n} className={`paso${x.cumple ? " cumple" : ""}`} aria-pressed={p?.n === x.n} onClick={() => setElegido(i)}
+                            aria-label={`${NOMBRE[m]}, petición ${x.n}: respuesta ${x.estado}${x.cumple ? ", cumple la prueba de éxito" : ""}`}>
+                            {x.estado}
+                          </button>
+                        ))}
+                      </div>
+                      {p && (
+                        <>
+                          <h5>Petición {p.n}</h5>
+                          <pre>{peticion(p, m)}</pre>
+                          <h5>Respuesta · {p.estado}{p.cumple ? " · cumple la prueba de éxito" : ""}</h5>
+                          <pre className={p.cumple ? "cumple" : undefined}>{p.respuesta}</pre>
+                        </>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             ))}
-          </div>
-        </section>
 
-        <section className="panel glow" aria-labelledby="h-matriz">
-          <div className="panel-head">
-            <h3 id="h-matriz">Matriz de resultados</h3>
-            <span className="muted">Cada ataque del catálogo, lanzado en los dos modos al arrancar.</span>
+            {pestana === "Código" && (
+              <>
+                <p className="muted hueco">Es el código que se ejecuta, leído del propio programa.</p>
+                <div className="dos">
+                  {MODOS.map((m) => (
+                    <div key={m} className={`columna col-${m}`}>
+                      <h4>{NOMBRE[m]}</h4>
+                      <pre>{ataque.codigo[m]}</pre>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+
+            {pestana === "Matriz" && (
+              <>
+                <p className="muted hueco">Cada ataque del catálogo, lanzado contra las dos versiones al arrancar.</p>
+                <table data-testid="matriz">
+                  <thead><tr><th scope="col">Ataque</th><th scope="col">Vulnerable</th><th scope="col">Endurecida</th></tr></thead>
+                  <tbody>
+                    {matriz.map((f) => (
+                      <tr key={f.ataque} className={f.ataque === id ? "actual" : undefined}>
+                        <th scope="row">{f.nombre}</th>
+                        {MODOS.map((m) => <td key={m} className={f[m] ? "v-exito" : "v-fallo"}>{f[m] ? "Tuvo éxito" : "No tuvo éxito"}</td>)}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </>
+            )}
           </div>
-          <table data-testid="matriz">
-            <thead><tr><th scope="col">Ataque</th><th scope="col">Vulnerable</th><th scope="col">Endurecida</th></tr></thead>
-            <tbody>
-              {matriz.map((f) => (
-                <tr key={f.ataque} className={f.ataque === id ? "actual" : undefined}>
-                  <th scope="row">{f.nombre}</th>
-                  {MODOS.map((m) => <td key={m.id} className={f[m.id] ? "v-exito" : "v-fallo"}>{f[m.id] ? "Tuvo éxito" : "No tuvo éxito"}</td>)}
-                </tr>
-              ))}
-            </tbody>
-          </table>
         </section>
       </main>
     </div>
