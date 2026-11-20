@@ -158,3 +158,30 @@ tr.actual { background: var(--surface-2); }
   .carriles, .dos { grid-template-columns: 1fr; }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+
+/* ---------- Lienzo de ataques (canvas) ---------- */
+/* Solo cuando el motor ha arrancado: si el script falla, queda la vía estática de siempre. */
+.via { position: relative; isolation: isolate; }
+.lienzo { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 0; }
+.via > :not(.lienzo) { position: relative; z-index: 1; }
+.via.lienzo-activo .viajera { display: none; }
+.via.lienzo-activo .tramo { opacity: 0.12; }
+.via.lienzo-activo .tramo.hot { opacity: 0.45; }
+
+/* ---------- H3: consola en la pestaña Peticiones ---------- */
+.terminal::before { content: "$ "; color: var(--cyan); }
+.pendiente-term { visibility: hidden; }
+.cursor-term { display: inline-block; width: 0.55em; height: 1.05em; margin-left: 1px; vertical-align: -0.18em; background: var(--cyan); animation: parpadeo 1s steps(1) infinite; }
+.terminal.escribiendo .cursor-term { animation: none; }
+@keyframes parpadeo { 50% { opacity: 0; } }
+.respuesta { opacity: 0; transition: opacity 0.25s; }
+.respuesta.lista { opacity: 1; }
+
+/* ---------- E3: retícula de puntos, muy tenue, en el fondo general ---------- */
+.shell { position: relative; isolation: isolate; }
+.shell::before {
+  content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+  background: radial-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1.2px) 0 0 / 22px 22px;
+  -webkit-mask: radial-gradient(1100px 700px at 60% 30%, #000, transparent 75%); mask: radial-gradient(1100px 700px at 60% 30%, #000, transparent 75%);
+}
+@media (prefers-reduced-motion: reduce) { .respuesta { opacity: 1; } .cursor-term { display: none; } }

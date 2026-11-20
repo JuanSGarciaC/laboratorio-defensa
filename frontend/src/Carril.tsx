@@ -1,3 +1,5 @@
+import { Descifra } from "./efectos";
+import LienzoCarril from "./lienzo/LienzoCarril";
 import type { Ataque, Ejecucion, Modo } from "./types";
 
 export const NOMBRE: Record<Modo, string> = { vulnerable: "Versión vulnerable", endurecida: "Versión endurecida" };
@@ -31,6 +33,7 @@ export default function Carril({ modo, ataque, ej, hechos, ritmo }: Props) {
       </header>
 
       <div className="via">
+        <LienzoCarril modo={modo} ej={ej} vistos={vistos} ritmo={ritmo} />
         <div className={`node n-atacar${enCurso ? " lit" : ""}`}>
           <span className="node-label">Atacar</span>
           <span className="node-title">{ataque.nombre}</span>
@@ -41,7 +44,7 @@ export default function Carril({ modo, ataque, ej, hechos, ritmo }: Props) {
         </div>
         <div className={`node n-objetivo${enCurso ? " busy" : ""}${fin ? " lit" : ""}`}>
           <span className="node-label">Objetivo</span>
-          <span className="node-count">{mostrado ? mostrado.estado : "—"}</span>
+          <span className="node-count">{mostrado ? <Descifra texto={String(mostrado.estado)} /> : "—"}</span>
           <span className="node-sub">{mostrado ? `respuesta a la petición ${mostrado.n}` : `ruta /${modo}/${ataque.funcion}`}</span>
         </div>
         <div className={`tramo t-fin${fin ? " hot" : ""}`} />

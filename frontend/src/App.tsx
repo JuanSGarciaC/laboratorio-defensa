@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { getAtaques, getMatriz, lanzar } from "./api";
 import Carril, { NOMBRE } from "./Carril";
+import { Terminal } from "./efectos";
+import { sinMovimiento } from "./movimiento";
 import type { Ataque, Ejecucion, FilaMatriz, Modo, Paso } from "./types";
 
 const MODOS: Modo[] = ["vulnerable", "endurecida"];
@@ -16,11 +18,23 @@ function trackPointer(e: React.PointerEvent) {
   el.style.setProperty("--my", `${e.clientY - r.top}px`);
 }
 
-const sinMovimiento = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 function peticion(p: Paso, modo: Modo) {
   const consulta = Object.entries(p.params).map(([k, v]) => `${k}=${v}`).join("&");
   return `${p.metodo} /${modo}${p.ruta}${consulta ? `?${consulta}` : ""}${p.cuerpo ? `\n${JSON.stringify(p.cuerpo)}` : ""}`;
+}
+
+// Una petición y su respuesta: la petición se teclea (H3) y la respuesta aparece al terminar.
+function Intercambio({ p, modo, animar }: { p: Paso; modo: Modo; animar: boolean }) {
+  const [listo, setListo] = useState(false);
+  return (
+    <>
+      <h5>Petición {p.n}</h5>
+      <Terminal texto={peticion(p, modo)} animar={animar} onFin={() => setListo(true)} />
+      <h5>Respuesta · {p.estado}{p.cumple ? " · cumple la prueba de éxito" : ""}</h5>
+      <pre className={`respuesta${p.cumple ? " cumple" : ""}${listo ? " lista" : ""}`}>{p.respuesta}</pre>
+    </>
+  );
 }
 
 export default function App() {
@@ -161,10 +175,7 @@ export default function App() {
                       </div>
                       {p && (
                         <>
-                          <h5>Petición {p.n}</h5>
-                          <pre>{peticion(p, m)}</pre>
-                          <h5>Respuesta · {p.estado}{p.cumple ? " · cumple la prueba de éxito" : ""}</h5>
-                          <pre className={p.cumple ? "cumple" : undefined}>{p.respuesta}</pre>
+                          <Intercambio key={p.n} p={p} modo={m} animar={elegido === null} />
                         </>
                       )}
                     </div>
