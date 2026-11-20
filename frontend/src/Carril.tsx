@@ -1,4 +1,8 @@
-import type { Ataque, Ejecucion, Modo } from "./types";
+import type { CSSProperties } from "react";
+import type { Ataque, Ejecucion, Modo, Paso } from "./types";
+
+// Color de la respuesta que vuelve: roja si cumple la prueba de éxito, verde si la cuenta está bloqueada.
+const tono = (p: Paso) => (p.cumple ? "var(--alta)" : p.estado === 429 ? "var(--auto)" : "#dfe7f5");
 
 export const NOMBRE: Record<Modo, string> = { vulnerable: "Versión vulnerable", endurecida: "Versión endurecida" };
 
@@ -22,6 +26,7 @@ export default function Carril({ modo, ataque, ej, hechos, ritmo }: Props) {
   const decisivo = ej?.pasos.find((p) => p.cumple) ?? null;
   // Al terminar, el objetivo enseña la respuesta que decidió el resultado, no la última.
   const mostrado = fin ? decisivo ?? ultimo : ultimo;
+  const enCamino = enCurso ? ej.pasos[vistos] : null; // la petición que viaja ahora
 
   return (
     <section className={`carril carril-${modo} estado-${estado}`} data-testid={`carril-${modo}`} data-estado={estado} aria-label={NOMBRE[modo]}>
@@ -37,13 +42,25 @@ export default function Carril({ modo, ataque, ej, hechos, ritmo }: Props) {
         </div>
         <div className={`tramo t-ida${enCurso || fin ? " hot" : ""}`}>
           {/* key: la animación arranca de nuevo con cada petición */}
-          {enCurso && <span key={vistos} className="viajera" style={{ animationDuration: `${Math.max(ritmo, 1)}ms` }} />}
+          {/* Baja la petición y sube la respuesta; si la cuenta está bloqueada, rebota sin entrar. */}
+          {enCamino && (
+            <span key={vistos} className={`viajera${enCamino.estado === 429 ? " rebota" : ""}`}
+              style={{ animationDuration: `${Math.max(ritmo, 1)}ms`, "--vuelta": tono(enCamino) } as CSSProperties} />
+          )}
         </div>
         <div className={`node n-objetivo${enCurso ? " busy" : ""}${fin ? " lit" : ""}`}>
           <span className="node-label">Objetivo</span>
-          <span className="node-count">{mostrado ? mostrado.estado : "—"}</span>
+          <span key={mostrado?.n ?? 0} className="node-count">{mostrado ? mostrado.estado : "—"}</span>
           <span className="node-sub">{mostrado ? `respuesta a la petición ${mostrado.n}` : `ruta /${modo}/${ataque.funcion}`}</span>
         </div>
+        {ej && (
+          // Rastro: una marca por petición respondida; la decisiva queda resaltada.
+          <ol className="rastro" aria-hidden="true">
+            {ej.pasos.slice(0, vistos).map((p) => (
+              <li key={p.n} className={p.cumple ? "cumple" : p.estado === 429 ? "bloqueo" : undefined} />
+            ))}
+          </ol>
+        )}
         <div className={`tramo t-fin${fin ? " hot" : ""}`} />
         <p className="final" aria-live="polite">
           {fin && ej ? (

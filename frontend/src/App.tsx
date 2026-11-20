@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { getAtaques, getMatriz, lanzar } from "./api";
 import Carril, { NOMBRE } from "./Carril";
+import { useScramble } from "./scramble";
 import type { Ataque, Ejecucion, FilaMatriz, Modo, Paso } from "./types";
 
 const MODOS: Modo[] = ["vulnerable", "endurecida"];
@@ -51,6 +52,8 @@ export default function App() {
     return () => clearTimeout(t);
   }, [reproduciendo, hechos, ritmo]);
 
+  const titulo = useScramble(ataques?.find((a) => a.id === id)?.nombre ?? "");
+
   const limpiar = () => { setDuelo(null); setHechos(0); setElegido(null); setError(null); };
 
   async function onLanzar() {
@@ -95,10 +98,10 @@ export default function App() {
         <div>
           <h2 className="eyebrow" id="h-ataques">Ataque</h2>
           <div className="ataques" role="group" aria-labelledby="h-ataques">
-            {ataques.map((a) => {
+            {ataques.map((a, i) => {
               const fila = matriz.find((f) => f.ataque === a.id);
               return (
-                <button key={a.id} className="ataque glow" aria-pressed={a.id === id} disabled={ocupado} onClick={() => { setId(a.id); limpiar(); }}>
+                <button key={a.id} className="ataque glow entra" style={{ "--i": i } as React.CSSProperties} aria-pressed={a.id === id} disabled={ocupado} onClick={() => { setId(a.id); limpiar(); }}>
                   <strong>{a.nombre}</strong>
                   <span className="etiquetas">{a.owasp.split(" ")[0]} · ATT&amp;CK {a.attack}</span>
                   {fila && (
@@ -121,7 +124,8 @@ export default function App() {
 
       <main className="main">
         <header className="cabecera">
-          <h2>{ataque.nombre}</h2>
+          {/* El lector de pantalla oye el nombre; los signos del descifrado son solo visuales. */}
+          <h2><span className="sr-only">{ataque.nombre}</span><span aria-hidden="true">{titulo}</span></h2>
           <p className="muted descripcion">{ataque.descripcion}</p>
           <p className="chips"><span className="chip">{ataque.owasp}</span><span className="chip">MITRE ATT&amp;CK {ataque.attack}</span></p>
         </header>
@@ -193,8 +197,8 @@ export default function App() {
                 <table data-testid="matriz">
                   <thead><tr><th scope="col">Ataque</th><th scope="col">Vulnerable</th><th scope="col">Endurecida</th></tr></thead>
                   <tbody>
-                    {matriz.map((f) => (
-                      <tr key={f.ataque} className={f.ataque === id ? "actual" : undefined}>
+                    {matriz.map((f, i) => (
+                      <tr key={f.ataque} className={`entra${f.ataque === id ? " actual" : ""}`} style={{ "--i": i } as React.CSSProperties}>
                         <th scope="row">{f.nombre}</th>
                         {MODOS.map((m) => <td key={m} className={f[m] ? "v-exito" : "v-fallo"}>{f[m] ? "Tuvo éxito" : "No tuvo éxito"}</td>)}
                       </tr>

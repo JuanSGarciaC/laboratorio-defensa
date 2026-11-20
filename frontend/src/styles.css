@@ -36,6 +36,10 @@ p { margin: 0; }
 :focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
 button { font: inherit; cursor: pointer; color: inherit; }
 button:disabled { cursor: wait; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+/* Entrada escalonada: listas de ataques y filas de la matriz. */
+.entra { animation: entra 0.45s cubic-bezier(0.2, 0.7, 0.2, 1) both; animation-delay: calc(var(--i, 0) * 70ms); }
+@keyframes entra { from { opacity: 0; transform: translateY(8px); } }
 .vacio { padding: 4rem 2rem; max-width: 60ch; margin: 0 auto; }
 
 /* ---------- Estructura: barra lateral fija y área de trabajo ---------- */
@@ -110,14 +114,45 @@ button.primary:disabled { opacity: 0.6; }
   animation: spin 0.9s linear infinite;
 }
 @keyframes spin { to { --angle: 360deg; } }
-.tramo { position: relative; width: 3px; height: 3.2rem; border-radius: 2px; background: var(--cyan); opacity: 0.2; transition: opacity 0.3s; }
+.tramo { --largo: 3.2rem; position: relative; width: 3px; height: var(--largo); border-radius: 2px; background: var(--cyan); opacity: 0.2; transition: opacity 0.3s; }
 .t-fin { background: var(--c); }
 .tramo.hot { opacity: 0.8; box-shadow: 0 0 8px currentColor; }
 .t-ida.hot { color: var(--cyan); }
 .t-fin.hot { color: var(--c); opacity: 1; }
-/* La petición en camino: un punto que baja de Atacar al Objetivo, una vez por petición. */
-.viajera { position: absolute; left: 50%; top: 0; width: 0.85rem; height: 0.85rem; margin: -0.42rem 0 0 -0.42rem; border-radius: 50%; background: #fff; box-shadow: 0 0 0.9em 0.25em var(--cyan); animation: baja linear both; }
-@keyframes baja { to { top: 100%; } }
+/* Ida y vuelta, una vez por petición: baja blanca, entra en el Objetivo y sube la respuesta con su color
+   (roja si cumple la prueba de éxito). Con la cuenta bloqueada (429) rebota antes de entrar. */
+.viajera { position: absolute; left: 50%; top: 0; width: 0.85rem; height: 0.85rem; margin: -0.42rem 0 0 -0.42rem; border-radius: 50%; background: #fff; box-shadow: 0 0 0.9em 0.25em var(--cyan); animation: idavuelta ease-in-out both; }
+.viajera.rebota { animation-name: rebota; }
+.viajera::after { content: ""; position: absolute; inset: 0; border-radius: 50%; background: var(--vuelta); box-shadow: 0 0 0.9em 0.25em var(--vuelta); opacity: 0; animation: tinte linear both; animation-duration: inherit; }
+@keyframes idavuelta {
+  0% { transform: translateY(0); opacity: 1; }
+  45% { transform: translateY(var(--largo)); opacity: 1; }
+  50%, 55% { transform: translateY(var(--largo)); opacity: 0; }
+  100% { transform: translateY(0); opacity: 1; }
+}
+@keyframes rebota { 50% { transform: translateY(calc(var(--largo) - 0.6rem)); } }
+@keyframes tinte { 0%, 50% { opacity: 0; } 53%, 100% { opacity: 1; } }
+
+/* Rastro: una marca por petición respondida. */
+.rastro { list-style: none; margin: 0.9rem 0; padding: 0; display: flex; flex-wrap: wrap; justify-content: center; gap: 4px; max-width: 22rem; }
+.rastro li { width: 8px; height: 8px; border-radius: 2px; background: rgba(255, 255, 255, 0.25); animation: marca 0.25s ease-out both; }
+.rastro li.cumple { background: var(--alta); box-shadow: 0 0 6px var(--alta); }
+.rastro li.bloqueo { background: var(--auto); }
+@keyframes marca { from { opacity: 0; transform: scale(0.4); } }
+
+/* El código de estado nuevo aparece con un fundido corto. */
+.node-count { animation: aparece 0.3s ease-out both; }
+@keyframes aparece { from { opacity: 0; transform: translateY(-3px); } }
+
+/* Al terminar, el carril se ilumina una vez con el color del resultado. */
+.carril { position: relative; }
+.estado-exito { --fin: var(--alta); }
+.estado-fallo { --fin: var(--auto); }
+.estado-exito::after, .estado-fallo::after {
+  content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; opacity: 0;
+  box-shadow: 0 0 2.6rem -0.2rem var(--fin), inset 0 0 0 1px var(--fin); animation: destello 1.6s ease-out;
+}
+@keyframes destello { 15% { opacity: 1; } }
 .final { display: grid; gap: 0.1rem; justify-items: center; text-align: center; margin-top: 1rem; min-height: 3.2rem; }
 .final strong { font: 600 1.2rem "Sora", system-ui, sans-serif; color: var(--c); }
 .final span { font-size: 0.9rem; color: var(--muted); }
@@ -157,4 +192,4 @@ tr.actual { background: var(--surface-2); }
   .main { padding: 1.5rem 1.1rem 3rem; }
   .carriles, .dos { grid-template-columns: 1fr; }
 }
-@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; animation: none !important; } }
