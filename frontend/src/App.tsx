@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { getAtaques, getMatriz, lanzar } from "./api";
 import Consola from "./Consola";
 import { Briefing, Conclusion } from "./Explicacion";
+import Guia, { guiaVista } from "./Guia";
 import Network, { type Seleccion } from "./Network";
 import { useScramble } from "./scramble";
 import Topologia from "./Topologia";
@@ -37,6 +38,7 @@ export default function App() {
   const [pausa, setPausa] = useState(false);
   const [rapido, setRapido] = useState(false);
   const [vista, setVista] = useState<Vista>("ambas");
+  const [guia, setGuia] = useState(() => !guiaVista());
 
   useEffect(() => {
     Promise.all([getAtaques(), getMatriz()])
@@ -98,6 +100,7 @@ export default function App() {
         <div className="brand">
           <h1><span className="sr-only">Laboratorio de defensa</span><span aria-hidden="true">{marca}</span></h1>
           <p>Ataques reales contra una aplicación propia. Ninguna petición sale de este servidor.</p>
+          <button className="ver-guia" onClick={() => setGuia(true)} disabled={guia}>? Ver la guía</button>
         </div>
 
         <div>
@@ -187,6 +190,7 @@ export default function App() {
           </div>
         </section>
       </main>
+      {guia && <Guia onCerrar={() => setGuia(false)} />}
     </div>
   );
 }

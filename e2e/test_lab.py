@@ -28,6 +28,8 @@ def page():
         nav = p.chromium.launch(channel=os.environ.get("BROWSER_CHANNEL") or None)
         # Sin movimiento la reproducción es inmediata; el ritmo de presentación lo ejercita scripts/capturas.py.
         pagina = nav.new_context(viewport={"width": 1360, "height": 1000}, reduced_motion="reduce").new_page()
+        # La guía de primera vez tiene su propia prueba; aquí se da por vista para que no tape nada.
+        pagina.add_init_script("localStorage.setItem('lab-guia', 'vista')")
         # Solo cuentan los errores de la propia aplicación.
         pagina.on("console", lambda m: m.type == "error" and BASE in (m.location.get("url") or "") and errores.append(f"{m.text} {m.location.get('url')}"))
         pagina.on("pageerror", lambda e: errores.append(str(e)))
@@ -82,6 +84,29 @@ def test_la_fuerza_bruta_se_compara_peticion_a_peticion(page: Page):
     expect(page.get_by_test_id("terminal")).to_contain_text("[12/20] POST /login admin:dragon2024")
     expect(page.get_by_test_id("terminal")).to_contain_text("vulnerable: prueba de éxito cumplida en la petición 12")
     expect(page.get_by_test_id("registro-endurecida")).to_contain_text('"POST /endurecida/login" 429')
+
+
+def test_la_guia_sale_la_primera_vez_y_se_puede_volver_a_ver(page: Page):
+    ctx = page.context.browser.new_context(viewport={"width": 1360, "height": 1000}, reduced_motion="reduce")
+    nueva = ctx.new_page()
+    nueva.goto(BASE)
+    guia = nueva.get_by_test_id("guia")
+    expect(guia).to_contain_text("1 de 5")
+    expect(nueva.locator(".ataques.guia-foco")).to_have_count(1)
+    for _ in range(4):
+        guia.get_by_role("button", name="Siguiente").click()
+    expect(guia).to_contain_text("5 de 5")
+    expect(nueva.locator(".detalle.guia-foco")).to_have_count(1)
+    guia.get_by_role("button", name="Empezar").click()
+    expect(guia).to_have_count(0)
+    nueva.reload()
+    expect(nueva.get_by_role("button", name=LANZAR)).to_be_enabled()
+    expect(nueva.get_by_test_id("guia")).to_have_count(0)  # ya vista: no vuelve sola
+    nueva.get_by_role("button", name="? Ver la guía").click()
+    expect(nueva.get_by_test_id("guia")).to_contain_text("1 de 5")
+    nueva.keyboard.press("Escape")
+    expect(nueva.get_by_test_id("guia")).to_have_count(0)
+    ctx.close()
 
 
 def test_pausa_paso_y_una_sola_version(page: Page):
