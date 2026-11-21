@@ -13,15 +13,17 @@ y una frase explica por qué. La misma carga, el mismo botón: lo único que cam
 la cuenta se bloquea al quinto fallo y la contraseña correcta ya no sirve. Los pasos son los de la ejecución real;
 el ritmo es de presentación (la ejecución entera dura milisegundos).*
 
-![La consola tras la fuerza bruta: resumen, topología, terminal y access.log de cada versión](docs/img/01-consola.png)
+![La consola tras la fuerza bruta: una barra por versión, la terminal del atacante y el access.log de cada servidor](docs/img/01-consola.png)
 
 | Resultado en lenguaje claro y diff | Network: petición y respuesta en crudo |
 |---|---|
-| ![Resultado y diff de la inyección SQL](docs/img/02-resultado-y-diff.png) | ![Pestaña Network](docs/img/03-network.png) |
+| ![Resultado y diff de la inyección SQL](docs/img/02-resultado-y-diff.png) | ![Pestaña Network con la petición 12 de la fuerza bruta](docs/img/03-network.png) |
 
 | Matriz de resultados | Guía de primera vez |
 |---|---|
-| ![Matriz](docs/img/04-matriz.png) | ![Guía, paso 3 de 5](docs/img/05-guia.png) |
+| ![Matriz de los siete ataques](docs/img/04-matriz.png) | ![Guía, paso 3 de 5](docs/img/05-guia.png) |
+
+![Redirección abierta: resumen, consola, resultado y diff](docs/img/06-redireccion-abierta.png)
 
 ## Qué es y qué no es
 
