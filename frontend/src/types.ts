@@ -6,6 +6,10 @@ export interface Ataque {
   descripcion: string;
   owasp: string;
   attack: string;
+  cwe: string;
+  falla: string;
+  defensa: string;
+  exito: { contiene: string | null; estado: number | null };
   funcion: string;
   n_peticiones: number;
   codigo: Record<Modo, string>;

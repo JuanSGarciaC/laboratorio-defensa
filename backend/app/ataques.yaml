@@ -6,6 +6,9 @@
   descripcion: La búsqueda arma el SQL pegando el texto del visitante. Con UNION se le añade una segunda consulta que devuelve la tabla de usuarios.
   owasp: "A03:2021 Inyección"
   attack: T1190
+  cwe: CWE-89
+  falla: El texto del visitante se pega dentro de la consulta, así que puede cambiar el SQL que se ejecuta.
+  defensa: El texto viaja como parámetro (LIKE ?) y la base nunca lo interpreta como SQL.
   funcion: buscar
   peticiones:
     - {metodo: GET, ruta: /buscar, params: {q: "' UNION SELECT email, clave FROM usuarios --"}}
@@ -16,6 +19,9 @@
   descripcion: La página devuelve el término buscado sin escapar. Si es una etiqueta script, el navegador de la víctima la ejecutaría.
   owasp: "A03:2021 Inyección"
   attack: T1059.007
+  cwe: CWE-79
+  falla: El término buscado vuelve a la página sin escapar, así que una etiqueta script llega viva al navegador.
+  defensa: El término se escapa con html.escape antes de mostrarlo y llega como texto inofensivo.
   funcion: buscar
   peticiones:
     - {metodo: GET, ruta: /buscar, params: {q: "<script>alert(1)</script>"}}
@@ -26,6 +32,9 @@
   descripcion: La descarga une el nombre pedido a la carpeta pública sin comprobar dónde termina. Con ../ se sale de ella y lee un archivo que no debía servirse.
   owasp: "A01:2021 Pérdida de control de acceso"
   attack: T1190
+  cwe: CWE-22
+  falla: Une el nombre pedido a la carpeta pública sin comprobar dónde termina la ruta, así que ../ sale de ella.
+  defensa: Resuelve la ruta y exige que siga dentro de la carpeta pública; si no, responde 404.
   funcion: archivo
   peticiones:
     - {metodo: GET, ruta: /archivo, params: {nombre: "../secreto.txt"}}
@@ -37,6 +46,9 @@
   descripcion: Veinte contraseñas comunes contra la cuenta admin, una tras otra. Sin límite de intentos, alguna acaba entrando.
   owasp: "A07:2021 Fallos de identificación y autenticación"
   attack: T1110.001
+  cwe: CWE-307
+  falla: No hay límite de intentos, así que se puede probar una contraseña tras otra hasta acertar.
+  defensa: Cinco fallos en un minuto bloquean la cuenta (429), aunque después llegue la contraseña correcta.
   funcion: login
   peticiones:
     - {metodo: POST, ruta: /login, cuerpo: {usuario: admin, clave: "123456"}}

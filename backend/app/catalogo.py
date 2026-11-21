@@ -24,6 +24,9 @@ class Ataque(BaseModel):
     descripcion: str
     owasp: str
     attack: str
+    cwe: str
+    falla: str  # por qué cae la versión vulnerable
+    defensa: str  # qué hace distinto la endurecida
     funcion: Literal["login", "buscar", "archivo"]
     peticiones: list[Peticion]
     exito: Exito
