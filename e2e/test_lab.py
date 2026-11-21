@@ -63,15 +63,45 @@ def test_la_fuerza_bruta_se_compara_peticion_a_peticion(page: Page):
     abrir(page)
     page.get_by_role("button", name=ATAQUES["fuerza-bruta"]).click()
     page.get_by_role("button", name=LANZAR).click()
-    endurecida, vulnerable = page.locator(".col-endurecida .paso"), page.locator(".col-vulnerable .paso")
+    red = page.get_by_test_id("network")
+    endurecida, vulnerable = red.locator("tr[data-modo=endurecida]"), red.locator("tr[data-modo=vulnerable]")
     expect(endurecida).to_have_count(20)
-    expect(endurecida.nth(4)).to_have_text("401")
-    expect(endurecida.nth(5)).to_have_text("429")
-    expect(vulnerable.nth(11)).to_have_text("200")
-    # Al terminar queda a la vista la petición que decidió el ataque, en las dos columnas.
-    expect(vulnerable.nth(11)).to_have_attribute("aria-pressed", "true")
-    expect(endurecida.nth(11)).to_have_attribute("aria-pressed", "true")
-    expect(page.locator(".col-endurecida pre").last).to_contain_text("Cuenta bloqueada")
+    expect(endurecida.nth(4).locator("td").nth(4)).to_have_text("401")
+    expect(endurecida.nth(5).locator("td").nth(4)).to_have_text("429")
+    expect(vulnerable.nth(11).locator("td").nth(4)).to_have_text("200 ✔")
+    # Al terminar queda a la vista la petición que decidió el ataque, en crudo.
+    expect(vulnerable.nth(11).get_by_role("button")).to_have_attribute("aria-pressed", "true")
+    expect(page.get_by_test_id("crudo-respuesta")).to_contain_text("HTTP/1.1 200 OK")
+    expect(page.get_by_test_id("crudo-respuesta")).to_contain_text("Sesión iniciada")
+    endurecida.nth(5).get_by_role("button").click()
+    expect(page.get_by_test_id("crudo-peticion")).to_contain_text("POST /endurecida/login HTTP/1.1")
+    expect(page.get_by_test_id("crudo-peticion")).to_contain_text("content-type: application/json")
+    expect(page.get_by_test_id("crudo-respuesta")).to_contain_text("HTTP/1.1 429 Too Many Requests")
+    expect(page.get_by_test_id("crudo-respuesta")).to_contain_text("Cuenta bloqueada")
+    # La terminal del atacante y el registro de cada servidor cuentan lo mismo.
+    expect(page.get_by_test_id("terminal")).to_contain_text("[12/20] POST /login admin:dragon2024")
+    expect(page.get_by_test_id("terminal")).to_contain_text("vulnerable: prueba de éxito cumplida en la petición 12")
+    expect(page.get_by_test_id("registro-endurecida")).to_contain_text('"POST /endurecida/login" 429')
+
+
+def test_pausa_paso_y_una_sola_version(page: Page):
+    abrir(page)
+    page.get_by_role("button", name=ATAQUES["fuerza-bruta"]).click()
+    page.get_by_role("button", name="❚❚ Pausa").click()
+    page.get_by_role("button", name=LANZAR).click()
+    filas = page.get_by_test_id("network").locator("tbody tr")
+    expect(page.get_by_role("button", name="Paso ▸")).to_be_enabled()
+    page.get_by_role("button", name="Paso ▸").click()
+    page.get_by_role("button", name="Paso ▸").click()
+    expect(filas).to_have_count(4)
+    page.get_by_role("button", name="Solo vulnerable").click()
+    expect(filas).to_have_count(2)
+    expect(page.get_by_test_id("registro-endurecida")).to_have_count(0)
+    expect(page.get_by_test_id("carril-endurecida")).to_have_count(0)
+    page.get_by_role("button", name="▶ Seguir").click()
+    expect(filas).to_have_count(20)
+    page.get_by_role("button", name="Ambas").click()
+    expect(filas).to_have_count(40)
 
 
 def test_el_diff_resalta_la_linea_que_cambia(page: Page):

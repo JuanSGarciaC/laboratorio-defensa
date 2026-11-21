@@ -1,14 +1,18 @@
 import { useEffect, useState } from "react";
 import { getAtaques, getMatriz, lanzar } from "./api";
-import Carril, { NOMBRE } from "./Carril";
-import { useScramble } from "./scramble";
+import Consola from "./Consola";
 import { Briefing, Conclusion } from "./Explicacion";
-import type { Ataque, Ejecucion, FilaMatriz, Modo, Paso } from "./types";
+import Network, { type Seleccion } from "./Network";
+import { useScramble } from "./scramble";
+import Topologia from "./Topologia";
+import type { Ataque, Ejecucion, FilaMatriz, Modo } from "./types";
 
 const MODOS: Modo[] = ["vulnerable", "endurecida"];
-const PESTANAS = ["Peticiones", "Matriz"] as const;
+const PESTANAS = ["Network", "Matriz"] as const;
 type Pestana = (typeof PESTANAS)[number];
 type Duelo = Record<Modo, Ejecucion>;
+type Vista = "ambas" | Modo;
+const VISTAS: { v: Vista; texto: string }[] = [{ v: "ambas", texto: "Ambas" }, { v: "vulnerable", texto: "Solo vulnerable" }, { v: "endurecida", texto: "Solo endurecida" }];
 
 function trackPointer(e: React.PointerEvent) {
   const el = (e.target as HTMLElement).closest<HTMLElement>(".glow");
@@ -20,21 +24,19 @@ function trackPointer(e: React.PointerEvent) {
 
 const sinMovimiento = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-function peticion(p: Paso, modo: Modo) {
-  const consulta = Object.entries(p.params).map(([k, v]) => `${k}=${v}`).join("&");
-  return `${p.metodo} /${modo}${p.ruta}${consulta ? `?${consulta}` : ""}${p.cuerpo ? `\n${JSON.stringify(p.cuerpo)}` : ""}`;
-}
-
 export default function App() {
   const [ataques, setAtaques] = useState<Ataque[] | null>(null);
   const [matriz, setMatriz] = useState<FilaMatriz[]>([]);
   const [id, setId] = useState("");
   const [duelo, setDuelo] = useState<Duelo | null>(null);
   const [hechos, setHechos] = useState(0); // peticiones ya reproducidas
-  const [elegido, setElegido] = useState<number | null>(null); // petición que el usuario quiere mirar
-  const [pestana, setPestana] = useState<Pestana>("Peticiones");
+  const [elegida, setElegida] = useState<Seleccion | null>(null); // fila de Network que el usuario quiere mirar
+  const [pestana, setPestana] = useState<Pestana>("Network");
   const [pidiendo, setPidiendo] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [pausa, setPausa] = useState(false);
+  const [rapido, setRapido] = useState(false);
+  const [vista, setVista] = useState<Vista>("ambas");
 
   useEffect(() => {
     Promise.all([getAtaques(), getMatriz()])
@@ -43,19 +45,20 @@ export default function App() {
   }, []);
 
   const total = duelo ? Math.max(...MODOS.map((m) => duelo[m].pasos.length)) : 0;
-  const ritmo = sinMovimiento() ? 0 : total > 8 ? 160 : 700;
+  const ritmo = sinMovimiento() ? 0 : (total > 8 ? 320 : 900) / (rapido ? 4 : 1);
   const reproduciendo = !!duelo && hechos < total;
 
   // Reproduce dos ejecuciones ya terminadas, a la par: los pasos son reales, el ritmo es de presentación.
   useEffect(() => {
-    if (!reproduciendo) return;
+    if (!reproduciendo || pausa) return;
     const t = setTimeout(() => setHechos((h) => h + 1), ritmo);
     return () => clearTimeout(t);
-  }, [reproduciendo, hechos, ritmo]);
+  }, [reproduciendo, pausa, hechos, ritmo]);
 
+  const marca = useScramble("Laboratorio de defensa");
   const titulo = useScramble(ataques?.find((a) => a.id === id)?.nombre ?? "");
 
-  const limpiar = () => { setDuelo(null); setHechos(0); setElegido(null); setError(null); };
+  const limpiar = () => { setDuelo(null); setHechos(0); setElegida(null); setError(null); };
 
   async function onLanzar() {
     limpiar();
@@ -64,7 +67,7 @@ export default function App() {
       // La misma carga contra las dos versiones.
       const [vulnerable, endurecida] = await Promise.all(MODOS.map((m) => lanzar(id, m)));
       setDuelo({ vulnerable, endurecida });
-      setPestana("Peticiones");
+      setPestana("Network");
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -84,15 +87,16 @@ export default function App() {
 
   const ocupado = pidiendo || reproduciendo;
   const fin = !!duelo && !reproduciendo;
-  // Petición a la vista: la elegida; si no, la que decidió el ataque al terminar o la última reproducida.
-  const decisiva = duelo ? MODOS.flatMap((m) => duelo[m].pasos.filter((p) => p.cumple).map((p) => p.n - 1))[0] : undefined;
-  const vista = elegido ?? (fin ? decisiva ?? total - 1 : hechos - 1);
+  const modos = vista === "ambas" ? MODOS : [vista];
+  // Fila a la vista: la elegida; si no, la petición que decidió el ataque al terminar o la última reproducida.
+  const decisiva = duelo && modos.flatMap((m) => duelo[m].pasos.filter((p) => p.cumple).map((p) => ({ modo: m, n: p.n })))[0];
+  const sel = (elegida && modos.includes(elegida.modo) ? elegida : null) ?? (fin ? decisiva || { modo: modos[0], n: total } : hechos ? { modo: modos[0], n: hechos } : null);
 
   return (
     <div className="shell" onPointerMove={trackPointer}>
       <aside className="lateral">
         <div className="brand">
-          <h1>Laboratorio de defensa</h1>
+          <h1><span className="sr-only">Laboratorio de defensa</span><span aria-hidden="true">{marca}</span></h1>
           <p>Ataques reales contra una aplicación propia. Ninguna petición sale de este servidor.</p>
         </div>
 
@@ -104,7 +108,7 @@ export default function App() {
               return (
                 <button key={a.id} className="ataque glow entra" style={{ "--i": i } as React.CSSProperties} aria-pressed={a.id === id} disabled={ocupado} onClick={() => { setId(a.id); limpiar(); }}>
                   <strong>{a.nombre}</strong>
-                  <span className="etiquetas">{a.owasp.split(" ")[0]} · ATT&amp;CK {a.attack}</span>
+                  <span className="etiquetas">{a.cwe} · ATT&amp;CK {a.attack}</span>
                   {fila && (
                     <span className="marcador">
                       <span className={fila.vulnerable ? "v-exito" : "v-fallo"}>Vulnerable: {fila.vulnerable ? "entra" : "resiste"}</span>
@@ -132,9 +136,21 @@ export default function App() {
         <Briefing ataque={ataque} />
         {error && <p className="error" role="alert">{error}</p>}
 
-        <div className="carriles">
-          {MODOS.map((m) => <Carril key={m} modo={m} ataque={ataque} ej={duelo?.[m] ?? null} hechos={hechos} ritmo={ritmo} />)}
-        </div>
+        <section className="banco glow" aria-label="Banco de pruebas">
+          <div className="controles" role="toolbar" aria-label="Reproducción">
+            <button onClick={() => setPausa((p) => !p)} aria-pressed={pausa}>{pausa ? "▶ Seguir" : "❚❚ Pausa"}</button>
+            <button onClick={() => setHechos((h) => Math.min(h + 1, total))} disabled={!pausa || !reproduciendo}>Paso ▸</button>
+            <button onClick={() => setRapido((r) => !r)} aria-pressed={rapido} aria-label={`Velocidad ${rapido ? "4×" : "1×"}`}>{rapido ? "4×" : "1×"}</button>
+            <span className="separador" />
+            <span role="group" aria-label="Versiones a la vista" className="segmentos">
+              {VISTAS.map(({ v, texto }) => <button key={v} aria-pressed={vista === v} onClick={() => setVista(v)}>{texto}</button>)}
+            </span>
+          </div>
+          <div className="topologia">
+            {modos.map((m) => <Topologia key={m} modo={m} ataque={ataque} ej={duelo?.[m] ?? null} hechos={hechos} />)}
+          </div>
+          <Consola ataque={ataque} duelo={duelo} hechos={hechos} modos={modos} />
+        </section>
 
         <Conclusion ataque={ataque} duelo={fin ? duelo : null} />
 
@@ -142,43 +158,15 @@ export default function App() {
           <div className="tabs" role="tablist" aria-label="Detalle">
             {PESTANAS.map((p) => (
               <button key={p} role="tab" id={`tab-${p}`} aria-selected={pestana === p} aria-controls="panel-detalle" onClick={() => setPestana(p)}>
-                {p}{p === "Peticiones" && duelo ? ` · ${total}` : ""}
+                {p}{p === "Network" && duelo ? ` · ${Math.min(hechos, total) * modos.length}` : ""}
               </button>
             ))}
           </div>
 
-          <div className="panel glow" role="tabpanel" id="panel-detalle" aria-labelledby={`tab-${pestana}`}>
-            {pestana === "Peticiones" && (!duelo || hechos === 0 ? (
-              <p className="muted hueco">Lanza el ataque para ver cada petición y lo que respondió cada versión.</p>
-            ) : (
-              <div className="dos">
-                {MODOS.map((m) => {
-                  const pasos = duelo[m].pasos.slice(0, hechos);
-                  const p = pasos[Math.min(vista, pasos.length - 1)];
-                  return (
-                    <div key={m} className={`columna col-${m}`}>
-                      <h4>{NOMBRE[m]}</h4>
-                      <div className="pasos">
-                        {pasos.map((x, i) => (
-                          <button key={x.n} className={`paso${x.cumple ? " cumple" : ""}`} aria-pressed={p?.n === x.n} onClick={() => setElegido(i)}
-                            aria-label={`${NOMBRE[m]}, petición ${x.n}: respuesta ${x.estado}${x.cumple ? ", cumple la prueba de éxito" : ""}`}>
-                            {x.estado}
-                          </button>
-                        ))}
-                      </div>
-                      {p && (
-                        <>
-                          <h5>Petición {p.n}</h5>
-                          <pre>{peticion(p, m)}</pre>
-                          <h5>Respuesta · {p.estado}{p.cumple ? " · cumple la prueba de éxito" : ""}</h5>
-                          <pre className={p.cumple ? "cumple" : undefined}>{p.respuesta}</pre>
-                        </>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            ))}
+          <div className="panel" role="tabpanel" id="panel-detalle" aria-labelledby={`tab-${pestana}`}>
+            {pestana === "Network" && (!duelo || hechos === 0
+              ? <p className="muted">Lanza el ataque para ver cada petición HTTP y lo que respondió cada versión.</p>
+              : <Network duelo={duelo} hechos={hechos} modos={modos} sel={sel} onSel={setElegida} />)}
 
             {pestana === "Matriz" && (
               <>
