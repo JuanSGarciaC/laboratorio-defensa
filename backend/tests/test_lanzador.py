@@ -12,15 +12,26 @@ def corre(ataque, modo):
     return asyncio.run(lanzar(ataque, modo))
 
 
-@pytest.mark.parametrize("id", ["inyeccion-sql", "xss-reflejado", "recorrido-rutas", "fuerza-bruta"])
+TODOS = ["inyeccion-sql", "xss-reflejado", "recorrido-rutas", "fuerza-bruta", "idor", "redireccion-abierta", "clickjacking"]
+
+
+@pytest.mark.parametrize("id", TODOS)
 def test_cada_ataque_funciona_en_vulnerable_y_falla_en_endurecida(id):
     assert corre(ATAQUES[id], "vulnerable").exito is True
     assert corre(ATAQUES[id], "endurecida").exito is False
 
 
-def test_el_catalogo_tiene_los_cuatro_ataques_con_sus_etiquetas():
-    assert list(ATAQUES) == ["inyeccion-sql", "xss-reflejado", "recorrido-rutas", "fuerza-bruta"]
+def test_el_catalogo_tiene_los_siete_ataques_con_sus_etiquetas():
+    assert list(ATAQUES) == TODOS
     assert ATAQUES["fuerza-bruta"].attack == "T1110.001" and ATAQUES["recorrido-rutas"].owasp.startswith("A01:2021")
+    assert [ATAQUES[i].cwe for i in TODOS] == ["CWE-89", "CWE-79", "CWE-22", "CWE-307", "CWE-639", "CWE-601", "CWE-1021"]
+    assert all(a.falla and a.defensa for a in ATAQUES.values())
+
+
+def test_la_redireccion_no_se_sigue_y_el_destino_queda_en_location():
+    v = corre(ATAQUES["redireccion-abierta"], "vulnerable").pasos
+    assert [p.estado for p in v] == [302, 302]
+    assert v[0].cabeceras_respuesta["location"] == "https://phishing.invalid/login"
 
 
 def test_fuerza_bruta_paso_a_paso():

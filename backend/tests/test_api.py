@@ -15,7 +15,7 @@ def test_health(c):
 
 def test_catalogo_trae_codigo_y_no_las_cargas(c):
     a = {x["id"]: x for x in c.get("/api/ataques").json()}
-    assert set(a) == {"inyeccion-sql", "xss-reflejado", "recorrido-rutas", "fuerza-bruta"}
+    assert set(a) == {"inyeccion-sql", "xss-reflejado", "recorrido-rutas", "fuerza-bruta", "idor", "redireccion-abierta", "clickjacking"}
     assert "peticiones" not in a["fuerza-bruta"] and a["fuerza-bruta"]["n_peticiones"] == 20
     assert "LIKE" in a["inyeccion-sql"]["codigo"]["vulnerable"]
     assert "is_relative_to(PUBLICO)" in a["recorrido-rutas"]["codigo"]["endurecida"]
@@ -28,7 +28,7 @@ def test_lanzar(c):
 
 def test_matriz(c):
     m = c.get("/api/matriz").json()
-    assert len(m) == 4
+    assert len(m) == 7
     assert all(f["vulnerable"] is True and f["endurecida"] is False for f in m)
     assert m[0]["ataque"] == "inyeccion-sql" and m[0]["nombre"] == "Inyección SQL"
 

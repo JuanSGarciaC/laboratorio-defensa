@@ -16,6 +16,9 @@ ATAQUES = {
     "xss-reflejado": "XSS reflejado",
     "recorrido-rutas": "Recorrido de rutas",
     "fuerza-bruta": "Fuerza bruta de login",
+    "idor": "Acceso a pedido ajeno (IDOR)",
+    "redireccion-abierta": "Redirección abierta",
+    "clickjacking": "Clickjacking (cabeceras de seguridad)",
 }
 MODOS = ("vulnerable", "endurecida")
 LANZAR = "Lanzar contra las dos"
@@ -201,3 +204,16 @@ def test_el_objetivo_no_es_accesible(page: Page):
 def test_sin_errores_de_consola_propios():
     # Los dos fallos provocados arriba (petición abortada y 429) son esperados.
     assert [e for e in errores if "lanzar" not in e] == []
+
+
+@pytest.mark.parametrize(("ataque", "vulnerable", "endurecida"), [
+    ("idor", "cayó en la petición 2 de 2 (id=2 → 200): la respuesta trajo «Av. Señuelo 42»", "ninguna respuesta trajo «Av. Señuelo 42»"),
+    ("redireccion-abierta", "la cabecera location traía «phishing.invalid»", "ninguna cabecera location traía «phishing.invalid»"),
+    ("clickjacking", "la respuesta llegó sin la cabecera x-frame-options", "todas las respuestas traían la cabecera x-frame-options"),
+])
+def test_los_ataques_nuevos_se_explican(page: Page, ataque: str, vulnerable: str, endurecida: str):
+    abrir(page)
+    page.get_by_role("button", name=ATAQUES[ataque]).click()
+    page.get_by_role("button", name=LANZAR).click()
+    expect(page.get_by_test_id("frase-vulnerable")).to_contain_text(vulnerable)
+    expect(page.get_by_test_id("frase-endurecida")).to_contain_text(endurecida)

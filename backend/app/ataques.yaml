@@ -72,3 +72,44 @@
     - {metodo: POST, ruta: /login, cuerpo: {usuario: admin, clave: "princesa"}}
     - {metodo: POST, ruta: /login, cuerpo: {usuario: admin, clave: "zxcvbnm"}}
   exito: {estado: 200}
+
+- id: idor
+  nombre: Acceso a pedido ajeno (IDOR)
+  descripcion: Un cliente con sesión pide su pedido y luego cambia el número en la URL. Si el servidor no comprueba de quién es, ve el pedido y la dirección de otra persona.
+  owasp: "A01:2021 Pérdida de control de acceso"
+  attack: T1190
+  cwe: CWE-639
+  falla: El pedido se busca solo por su número; nadie comprueba que pertenezca a quien lo pide.
+  defensa: La consulta exige que el pedido sea del usuario de la sesión; uno ajeno responde 404, como si no existiera.
+  funcion: pedido
+  peticiones:
+    - {metodo: GET, ruta: /pedido, params: {id: "1"}, cabeceras: {x-sesion: sesion-cliente-lab}}
+    - {metodo: GET, ruta: /pedido, params: {id: "2"}, cabeceras: {x-sesion: sesion-cliente-lab}}
+  exito: {contiene: "Av. Señuelo 42"}
+
+- id: redireccion-abierta
+  nombre: Redirección abierta
+  descripcion: El enlace de cerrar sesión acepta a dónde ir después. Con un dominio ajeno, la web legítima envía a la víctima a una página de phishing.
+  owasp: "A01:2021 Pérdida de control de acceso"
+  attack: T1566.002
+  cwe: CWE-601
+  falla: Redirige a lo que diga el parámetro siguiente, aunque sea otro dominio.
+  defensa: Solo acepta rutas del propio sitio (empiezan por / y no por // ni /\); cualquier otra cosa vuelve a la portada.
+  funcion: salir
+  peticiones:
+    - {metodo: GET, ruta: /salir, params: {siguiente: "https://phishing.invalid/login"}}
+    - {metodo: GET, ruta: /salir, params: {siguiente: "//phishing.invalid/login"}}
+  exito: {cabecera: location, contiene: "phishing.invalid"}
+
+- id: clickjacking
+  nombre: Clickjacking (cabeceras de seguridad)
+  descripcion: Una web ajena carga la tienda en un marco invisible y engaña al visitante para que pulse un botón real. Solo funciona si la página permite que la enmarquen.
+  owasp: "A05:2021 Configuración de seguridad incorrecta"
+  attack: T1189
+  cwe: CWE-1021
+  falla: La página se sirve sin X-Frame-Options ni CSP frame-ancestors, así que cualquier sitio puede enmarcarla.
+  defensa: Envía X-Frame-Options DENY y una CSP con frame-ancestors 'none', además de nosniff y no-referrer.
+  funcion: inicio
+  peticiones:
+    - {metodo: GET, ruta: /inicio}
+  exito: {falta: x-frame-options}

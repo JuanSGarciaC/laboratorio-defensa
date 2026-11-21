@@ -3,7 +3,8 @@ import type { Ataque, Ejecucion, Modo, Paso } from "./types";
 export const VERSION: Record<Modo, string> = { vulnerable: "vulnerable", endurecida: "endurecida" };
 
 // La carga de una petición en corto: "admin:dragon2024" o el término de búsqueda.
-export const carga = (p: Paso) => Object.values(p.cuerpo ?? p.params).join(":");
+export const carga = (p: Paso) =>
+  (p.cuerpo ? Object.values(p.cuerpo).join(":") : Object.entries(p.params).map(([k, v]) => `${k}=${v}`).join("&")) || "—";
 
 // La prueba objetiva de éxito del catálogo, en palabras.
 export function criterio({ exito: e }: Ataque): string {

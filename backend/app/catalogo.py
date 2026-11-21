@@ -11,11 +11,14 @@ class Peticion(BaseModel):
     ruta: str
     params: dict[str, str] = {}
     cuerpo: dict[str, str] | None = None
+    cabeceras: dict[str, str] = {}
 
 
 class Exito(BaseModel):
-    contiene: str | None = None
+    contiene: str | None = None  # en el cuerpo, o en la cabecera indicada
     estado: int | None = None
+    cabecera: str | None = None
+    falta: str | None = None  # la respuesta llega sin esta cabecera
 
 
 class Ataque(BaseModel):
@@ -27,7 +30,7 @@ class Ataque(BaseModel):
     cwe: str
     falla: str  # por qué cae la versión vulnerable
     defensa: str  # qué hace distinto la endurecida
-    funcion: Literal["login", "buscar", "archivo"]
+    funcion: Literal["login", "buscar", "archivo", "pedido", "salir", "inicio"]
     peticiones: list[Peticion]
     exito: Exito
 
