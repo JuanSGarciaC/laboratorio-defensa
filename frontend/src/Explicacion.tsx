@@ -1,3 +1,4 @@
+import { descargar, informe } from "./informe";
 import { diff, porque, resumen } from "./lectura";
 import type { Ataque, Ejecucion, Modo } from "./types";
 
@@ -26,6 +27,11 @@ export function Conclusion({ ataque, duelo }: { ataque: Ataque; duelo: Record<Mo
             {resumen(ataque, m, duelo[m])} <span className="muted">{porque(ataque, m, duelo[m])}</span>
           </p>
         )) : <p className="muted">Lanza el ataque: aquí verás en qué petición cae cada versión y por qué.</p>}
+        {duelo && (
+          <button className="exportar" onClick={() => descargar(`informe-${ataque.id}.md`, informe(ataque, duelo))}>
+            ↓ Exportar informe (.md)
+          </button>
+        )}
       </div>
       <div className="diff-caja">
         <h3 className="eyebrow">Qué cambia en el código <span className="leyenda"><span className="menos">− vulnerable</span> <span className="mas">+ endurecida</span></span></h3>

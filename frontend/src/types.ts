@@ -9,7 +9,7 @@ export interface Ataque {
   cwe: string;
   falla: string;
   defensa: string;
-  exito: { contiene: string | null; estado: number | null };
+  exito: { contiene: string | null; estado: number | null; cabecera?: string | null; falta?: string | null };
   funcion: string;
   n_peticiones: number;
   codigo: Record<Modo, string>;

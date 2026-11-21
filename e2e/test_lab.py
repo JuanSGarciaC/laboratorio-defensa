@@ -86,6 +86,21 @@ def test_la_fuerza_bruta_se_compara_peticion_a_peticion(page: Page):
     expect(page.get_by_test_id("registro-endurecida")).to_contain_text('"POST /endurecida/login" 429')
 
 
+def test_el_informe_se_exporta_en_markdown(page: Page):
+    abrir(page)
+    page.get_by_role("button", name=ATAQUES["fuerza-bruta"]).click()
+    page.get_by_role("button", name=LANZAR).click()
+    with page.expect_download() as descarga:
+        page.get_by_role("button", name="↓ Exportar informe (.md)").click()
+    assert descarga.value.suggested_filename == "informe-fuerza-bruta.md"
+    texto = open(descarga.value.path(), encoding="utf-8").read()
+    for seccion in ("## Hipótesis", "## Experimento", "## Resultado", "## Conclusión", "```diff"):
+        assert seccion in texto
+    assert "CWE-307 · MITRE ATT&CK T1110.001" in texto
+    assert "| 12 | `admin:dragon2024` | 200 ✔ | 429 |" in texto
+    assert "La hipótesis se confirma" in texto
+
+
 def test_la_guia_sale_la_primera_vez_y_se_puede_volver_a_ver(page: Page):
     ctx = page.context.browser.new_context(viewport={"width": 1360, "height": 1000}, reduced_motion="reduce")
     nueva = ctx.new_page()

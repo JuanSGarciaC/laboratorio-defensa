@@ -99,6 +99,8 @@ button.primary:disabled { opacity: 0.6; cursor: wait; }
 .frase { padding-left: 0.8rem; border-left: 3px solid var(--alta); }
 .f-endurecida { border-color: var(--auto); }
 .frase .muted { display: block; margin-top: 0.25rem; }
+.exportar { justify-self: start; padding: 0.45rem 0.85rem; background: none; border: 1px solid var(--cyan); border-radius: 6px; color: var(--cyan); font: 700 0.8rem var(--mono); }
+.exportar:hover { background: rgba(86, 212, 255, 0.1); }
 .leyenda { float: right; text-transform: none; letter-spacing: 0; }
 /* El código no se parte: se desplaza en horizontal dentro del bloque y cada fondo llega hasta la línea más larga. */
 .diff { padding: 0.8rem 0; white-space: pre; overflow-x: auto; overflow-wrap: normal; }

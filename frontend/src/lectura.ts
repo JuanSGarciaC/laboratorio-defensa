@@ -5,18 +5,30 @@ export const VERSION: Record<Modo, string> = { vulnerable: "vulnerable", endurec
 // La carga de una petición en corto: "admin:dragon2024" o el término de búsqueda.
 export const carga = (p: Paso) => Object.values(p.cuerpo ?? p.params).join(":");
 
+// La prueba objetiva de éxito del catálogo, en palabras.
+export function criterio({ exito: e }: Ataque): string {
+  if (e.falta) return `la respuesta llega sin la cabecera ${e.falta}`;
+  if (e.cabecera && e.contiene != null) return `la cabecera ${e.cabecera} contiene «${e.contiene}»`;
+  if (e.contiene != null) return `la respuesta contiene «${e.contiene}»`;
+  return `el objetivo responde ${e.estado}`;
+}
+
 // B2: el resultado de una versión en una frase, con los datos de la ejecución.
 export function resumen(ataque: Ataque, modo: Modo, ej: Ejecucion): string {
   const total = ej.pasos.length;
-  const { contiene, estado } = ataque.exito;
+  const { contiene, estado, cabecera, falta } = ataque.exito;
   const decisiva = ej.pasos.find((p) => p.cumple);
   if (decisiva) {
     const donde = total > 1 ? `en la petición ${decisiva.n} de ${total}` : "con la primera petición";
-    const prueba = contiene != null ? `la respuesta trajo «${contiene}»` : `el objetivo aceptó la entrada con un ${estado}`;
+    const prueba = falta ? `la respuesta llegó sin la cabecera ${falta}`
+      : cabecera ? `la cabecera ${cabecera} traía «${contiene}»`
+      : contiene != null ? `la respuesta trajo «${contiene}»` : `el objetivo aceptó la entrada con un ${estado}`;
     return `La versión ${VERSION[modo]} cayó ${donde} (${carga(decisiva)} → ${decisiva.estado}): ${prueba}.`;
   }
   const bloqueo = ej.pasos.find((p) => p.estado === 429);
   const como = bloqueo ? `bloqueó la cuenta desde la petición ${bloqueo.n} con 429`
+    : falta ? `todas las respuestas traían la cabecera ${falta}`
+    : cabecera ? `ninguna cabecera ${cabecera} traía «${contiene}»`
     : contiene != null ? `ninguna respuesta trajo «${contiene}»` : `ninguna respuesta fue un ${estado}`;
   return `La versión ${VERSION[modo]} resistió ${total > 1 ? `las ${total} peticiones` : "la petición"}: ${como}.`;
 }
