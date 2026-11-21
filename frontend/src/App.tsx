@@ -2,10 +2,11 @@ import { useEffect, useState } from "react";
 import { getAtaques, getMatriz, lanzar } from "./api";
 import Carril, { NOMBRE } from "./Carril";
 import { useScramble } from "./scramble";
+import { Briefing, Conclusion } from "./Explicacion";
 import type { Ataque, Ejecucion, FilaMatriz, Modo, Paso } from "./types";
 
 const MODOS: Modo[] = ["vulnerable", "endurecida"];
-const PESTANAS = ["Peticiones", "Código", "Matriz"] as const;
+const PESTANAS = ["Peticiones", "Matriz"] as const;
 type Pestana = (typeof PESTANAS)[number];
 type Duelo = Record<Modo, Ejecucion>;
 
@@ -126,14 +127,16 @@ export default function App() {
         <header className="cabecera">
           {/* El lector de pantalla oye el nombre; los signos del descifrado son solo visuales. */}
           <h2><span className="sr-only">{ataque.nombre}</span><span aria-hidden="true">{titulo}</span></h2>
-          <p className="muted descripcion">{ataque.descripcion}</p>
-          <p className="chips"><span className="chip">{ataque.owasp}</span><span className="chip">MITRE ATT&amp;CK {ataque.attack}</span></p>
+          <p className="chips"><span className="chip">{ataque.owasp}</span><span className="chip">{ataque.cwe}</span><span className="chip">MITRE ATT&amp;CK {ataque.attack}</span></p>
         </header>
+        <Briefing ataque={ataque} />
         {error && <p className="error" role="alert">{error}</p>}
 
         <div className="carriles">
           {MODOS.map((m) => <Carril key={m} modo={m} ataque={ataque} ej={duelo?.[m] ?? null} hechos={hechos} ritmo={ritmo} />)}
         </div>
+
+        <Conclusion ataque={ataque} duelo={fin ? duelo : null} />
 
         <section className="detalle">
           <div className="tabs" role="tablist" aria-label="Detalle">
@@ -176,20 +179,6 @@ export default function App() {
                 })}
               </div>
             ))}
-
-            {pestana === "Código" && (
-              <>
-                <p className="muted hueco">Es el código que se ejecuta, leído del propio programa.</p>
-                <div className="dos">
-                  {MODOS.map((m) => (
-                    <div key={m} className={`columna col-${m}`}>
-                      <h4>{NOMBRE[m]}</h4>
-                      <pre>{ataque.codigo[m]}</pre>
-                    </div>
-                  ))}
-                </div>
-              </>
-            )}
 
             {pestana === "Matriz" && (
               <>

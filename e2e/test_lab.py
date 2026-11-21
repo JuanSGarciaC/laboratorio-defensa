@@ -74,12 +74,22 @@ def test_la_fuerza_bruta_se_compara_peticion_a_peticion(page: Page):
     expect(page.locator(".col-endurecida pre").last).to_contain_text("Cuenta bloqueada")
 
 
-def test_la_pestana_codigo_ensena_las_dos_versiones(page: Page):
+def test_el_diff_resalta_la_linea_que_cambia(page: Page):
     abrir(page)
     page.get_by_role("button", name=ATAQUES["inyeccion-sql"]).click()
-    page.get_by_role("tab", name="Código").click()
-    expect(page.locator(".col-vulnerable pre")).to_contain_text("LIKE '%{q}%'")
-    expect(page.locator(".col-endurecida pre")).to_contain_text("LIKE ?")
+    diff = page.get_by_test_id("diff")
+    expect(diff.locator(".menos.clave").first).to_contain_text("LIKE '%{q}%'")
+    expect(diff.locator(".mas.clave").first).to_contain_text("LIKE ?")
+    expect(diff.locator(".dl:not(.menos):not(.mas)").first).to_contain_text("def buscar(db, q):")
+
+
+def test_el_briefing_y_el_resultado_se_explican(page: Page):
+    abrir(page)
+    page.get_by_role("button", name=ATAQUES["fuerza-bruta"]).click()
+    expect(page.get_by_label("Qué vas a ver")).to_contain_text("No hay límite de intentos")
+    page.get_by_role("button", name=LANZAR).click()
+    expect(page.get_by_test_id("frase-vulnerable")).to_contain_text("cayó en la petición 12 de 20 (admin:dragon2024 → 200)")
+    expect(page.get_by_test_id("frase-endurecida")).to_contain_text("bloqueó la cuenta desde la petición 6 con 429")
 
 
 def test_la_matriz_y_la_barra_lateral_son_las_de_la_api(page: Page):
