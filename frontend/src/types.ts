@@ -11,6 +11,7 @@ export interface Ataque {
   defensa: string;
   exito: { contiene: string | null; estado: number | null; cabecera?: string | null; falta?: string | null };
   funcion: string;
+  variable?: string | null; // campo que el visitante puede ajustar con su diccionario
   n_peticiones: number;
   codigo: Record<Modo, string>;
 }

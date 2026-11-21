@@ -74,3 +74,32 @@ def test_limite_cero_rechaza_siempre_sin_romperse(monkeypatch):
     monkeypatch.setenv("LIMITE_POR_MINUTO", "0")
     c = TestClient(crea_app())
     assert [c.post("/api/ataques/xss-reflejado/lanzar", params={"modo": "vulnerable"}).status_code for _ in range(2)] == [429, 429]
+
+
+def lanza(c, cuerpo, id="fuerza-bruta", modo="vulnerable"):
+    return c.post(f"/api/ataques/{id}/lanzar", params={"modo": modo}, json=cuerpo)
+
+
+def test_ajustes_de_intentos_y_diccionario(c):
+    r = lanza(c, {"intentos": 8})
+    assert r.status_code == 200 and len(r.json()["pasos"]) == 8 and r.json()["exito"] is False
+    r = lanza(c, {"diccionario": ["hola", "dragon2024", "otra"]})
+    assert [p["cuerpo"] for p in r.json()["pasos"]][1] == {"usuario": "admin", "clave": "dragon2024"}
+    assert r.json()["pasos"][1]["cumple"] and r.json()["pasos"][1]["destino"] == "/vulnerable/login"
+    r = lanza(c, {"intentos": 2, "diccionario": ["a", "b", "c"]})
+    assert len(r.json()["pasos"]) == 2
+    assert len(lanza(c, {}).json()["pasos"]) == 20  # sin ajustes, el catálogo tal cual
+
+
+@pytest.mark.parametrize("cuerpo", [
+    {"intentos": 0}, {"intentos": 51}, {"intentos": "muchos"},
+    {"diccionario": ["x"] * 51}, {"diccionario": ["x" * 33]}, {"diccionario": [""]}, {"diccionario": ["a\nb"]},
+    {"diccionario": "dragon2024"}, {"url": "http://otro.invalid"}, {"intentos": 3, "ruta": "/admin"},
+])
+def test_ajustes_fuera_de_limites_se_rechazan(c, cuerpo):
+    assert lanza(c, cuerpo).status_code == 422
+
+
+def test_ajustes_solo_en_ataques_que_los_admiten(c):
+    r = lanza(c, {"intentos": 1}, id="inyeccion-sql")
+    assert r.status_code == 422 and r.json()["detail"] == "Este ataque no admite ajustes."

@@ -5,14 +5,26 @@ import time
 from collections import deque
 from pathlib import Path
 
-from fastapi import Depends, FastAPI, HTTPException, Request
-from fastapi.staticfiles import StaticFiles
+from typing import Annotated
 
-from .catalogo import ATAQUES
+from fastapi import Body, Depends, FastAPI, HTTPException, Request
+from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints
+
+from .catalogo import ATAQUES, con_ajustes
 from .lanzador import Ejecucion, lanzar
 from .objetivo import FUENTES, Modo, crea_objetivo
 
 VENTANA = 60.0
+MAX_INTENTOS = 50
+# Entrada del visitante: listas cortas, valores cortos y sin caracteres de control. Nunca es una URL ni una ruta.
+Entrada = Annotated[str, StringConstraints(min_length=1, max_length=32, pattern=r"^[^\x00-\x1f\x7f]+$")]
+
+
+class Ajustes(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    intentos: int | None = Field(None, ge=1, le=MAX_INTENTOS)
+    diccionario: list[Entrada] | None = Field(None, max_length=MAX_INTENTOS)
 
 
 def crea_app() -> FastAPI:
@@ -50,10 +62,15 @@ def crea_app() -> FastAPI:
         ]
 
     @app.post("/api/ataques/{id}/lanzar", dependencies=[Depends(limitar)])
-    async def lanzar_ataque(id: str, modo: Modo) -> Ejecucion:
+    async def lanzar_ataque(id: str, modo: Modo, ajustes: Ajustes | None = Body(None)) -> Ejecucion:
         if id not in ATAQUES:
             raise HTTPException(404, "Ese ataque no está en el catálogo.")
-        return await lanzar(ATAQUES[id], modo)
+        ataque = ATAQUES[id]
+        if ajustes is None or (ajustes.intentos is None and not ajustes.diccionario):
+            return await lanzar(ataque, modo)
+        if ataque.variable is None:
+            raise HTTPException(422, "Este ataque no admite ajustes.")
+        return await lanzar(ataque, modo, con_ajustes(ataque, ajustes.intentos, ajustes.diccionario))
 
     @app.get("/api/matriz")
     async def ver_matriz():

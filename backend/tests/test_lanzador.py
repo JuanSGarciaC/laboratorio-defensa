@@ -4,7 +4,7 @@ import ipaddress
 
 import pytest
 
-from app.catalogo import ATAQUES, Peticion
+from app.catalogo import ATAQUES, Peticion, con_ajustes
 from app.lanzador import lanzar
 
 
@@ -67,4 +67,13 @@ def test_respuesta_recortada_y_error_del_objetivo_no_rompe():
 
 
 def test_el_lanzador_no_acepta_destino():
-    assert list(inspect.signature(lanzar).parameters) == ["ataque", "modo"]
+    # Solo recibe peticiones del catálogo (ajustadas o no); ningún parámetro es una URL o un host.
+    assert list(inspect.signature(lanzar).parameters) == ["ataque", "modo", "peticiones"]
+
+
+def test_los_ajustes_solo_cambian_la_variable():
+    fb = ATAQUES["fuerza-bruta"]
+    ajustadas = con_ajustes(fb, 3, ["../../x", "http://otro.invalid", "a"])
+    assert [(p.metodo, p.ruta, p.params, p.cabeceras) for p in ajustadas] == [("POST", "/login", {}, {})] * 3
+    assert [p.cuerpo for p in ajustadas] == [{"usuario": "admin", "clave": c} for c in ("../../x", "http://otro.invalid", "a")]
+    assert con_ajustes(fb, 5, None) == fb.peticiones[:5]

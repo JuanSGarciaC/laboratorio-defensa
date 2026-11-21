@@ -46,6 +46,7 @@
   descripcion: Veinte contraseñas comunes contra la cuenta admin, una tras otra. Sin límite de intentos, alguna acaba entrando.
   owasp: "A07:2021 Fallos de identificación y autenticación"
   attack: T1110.001
+  variable: clave
   cwe: CWE-307
   falla: No hay límite de intentos, así que se puede probar una contraseña tras otra hasta acertar.
   defensa: Cinco fallos en un minuto bloquean la cuenta (429), aunque después llegue la contraseña correcta.

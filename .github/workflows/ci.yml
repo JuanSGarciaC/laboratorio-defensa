@@ -25,6 +25,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: docker compose up -d --build --wait
+        env: { LIMITE_POR_MINUTO: "1000" }  # la suite e2e lanza más de 30 ataques por minuto
       - uses: astral-sh/setup-uv@v6
       - run: uv run --with pytest --with playwright playwright install --with-deps chromium
       - run: uv run --with pytest --with playwright pytest e2e -q

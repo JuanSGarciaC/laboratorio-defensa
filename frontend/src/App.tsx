@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { getAtaques, getMatriz, lanzar } from "./api";
+import { type Ajustes, getAtaques, getMatriz, lanzar } from "./api";
 import Consola from "./Consola";
 import { Briefing, Conclusion } from "./Explicacion";
 import Guia, { guiaVista } from "./Guia";
@@ -39,6 +39,9 @@ export default function App() {
   const [rapido, setRapido] = useState(false);
   const [vista, setVista] = useState<Vista>("ambas");
   const [guia, setGuia] = useState(() => !guiaVista());
+  const [intentos, setIntentos] = useState("");
+  const [diccionario, setDiccionario] = useState("");
+  const [banderas, setBanderas] = useState(""); // ajustes del último lanzamiento, para el comando de la terminal
 
   useEffect(() => {
     Promise.all([getAtaques(), getMatriz()])
@@ -62,12 +65,22 @@ export default function App() {
 
   const limpiar = () => { setDuelo(null); setHechos(0); setElegida(null); setError(null); };
 
+  // B9: solo para ataques que lo admiten. El backend valida los límites; aquí solo se recoge lo escrito.
+  function leerAjustes(): Ajustes | undefined {
+    if (!ataques?.find((a) => a.id === id)?.variable) return undefined;
+    const lista = diccionario.split("\n").map((l) => l.trim()).filter(Boolean);
+    const a: Ajustes = { ...(intentos.trim() && { intentos: Number(intentos) }), ...(lista.length && { diccionario: lista }) };
+    return Object.keys(a).length ? a : undefined;
+  }
+
   async function onLanzar() {
     limpiar();
     setPidiendo(true);
     try {
+      const ajustes = leerAjustes();
       // La misma carga contra las dos versiones.
-      const [vulnerable, endurecida] = await Promise.all(MODOS.map((m) => lanzar(id, m)));
+      const [vulnerable, endurecida] = await Promise.all(MODOS.map((m) => lanzar(id, m, ajustes)));
+      setBanderas([ajustes?.intentos && `--intentos ${ajustes.intentos}`, ajustes?.diccionario && `--diccionario propio(${ajustes.diccionario.length})`].filter(Boolean).join(" "));
       setDuelo({ vulnerable, endurecida });
       setPestana("Network");
     } catch (e) {
@@ -124,6 +137,23 @@ export default function App() {
           </div>
         </div>
 
+        {ataque.variable && (
+          <details className="ajustes">
+            <summary>Ajustes del ataque</summary>
+            <label>
+              Intentos <span className="muted">(1–50)</span>
+              <input type="number" min={1} max={50} inputMode="numeric" value={intentos} placeholder={String(ataque.n_peticiones)}
+                onChange={(e) => setIntentos(e.target.value)} disabled={ocupado} />
+            </label>
+            <label>
+              Diccionario de «{ataque.variable}» <span className="muted">(uno por línea, máx. 50 de 32 caracteres)</span>
+              <textarea rows={4} value={diccionario} placeholder={"123456\nadmin\ndragon2024"} spellCheck={false}
+                onChange={(e) => setDiccionario(e.target.value)} disabled={ocupado} />
+            </label>
+            <p className="muted">Vacío: las {ataque.n_peticiones} del catálogo. Solo cambia la {ataque.variable}: la ruta y el destino son fijos.</p>
+          </details>
+        )}
+
         <div className="accion">
           <button className="primary" onClick={() => void onLanzar()} disabled={ocupado}>{ocupado ? "Lanzando…" : "Lanzar contra las dos"}</button>
           <p className="muted">La misma carga, a la vez, contra la versión vulnerable y la endurecida.</p>
@@ -152,7 +182,7 @@ export default function App() {
           <div className="topologia">
             {modos.map((m) => <Topologia key={m} modo={m} ataque={ataque} ej={duelo?.[m] ?? null} hechos={hechos} />)}
           </div>
-          <Consola ataque={ataque} duelo={duelo} hechos={hechos} modos={modos} />
+          <Consola ataque={ataque} duelo={duelo} hechos={hechos} modos={modos} banderas={banderas} />
         </section>
 
         <Conclusion ataque={ataque} duelo={fin ? duelo : null} />

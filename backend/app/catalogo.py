@@ -33,6 +33,17 @@ class Ataque(BaseModel):
     funcion: Literal["login", "buscar", "archivo", "pedido", "salir", "inicio"]
     peticiones: list[Peticion]
     exito: Exito
+    variable: str | None = None  # campo del cuerpo que el visitante puede cambiar con su diccionario
+
+
+def con_ajustes(ataque: Ataque, intentos: int | None, diccionario: list[str] | None) -> list[Peticion]:
+    """Peticiones del ataque con los ajustes del visitante. Solo cambia el valor de `variable`
+    en el cuerpo: método, ruta y destino siguen siendo los del catálogo."""
+    base = ataque.peticiones
+    if diccionario:
+        plantilla = base[0]
+        base = [plantilla.model_copy(update={"cuerpo": {**(plantilla.cuerpo or {}), ataque.variable: c}}) for c in diccionario]
+    return base[:intentos] if intentos else base
 
 
 _crudo = yaml.safe_load((Path(__file__).parent / "ataques.yaml").read_text(encoding="utf-8"))

@@ -9,7 +9,7 @@ import time
 import httpx
 from pydantic import BaseModel
 
-from .catalogo import Ataque, Exito
+from .catalogo import Ataque, Exito, Peticion
 from .objetivo import Modo, crea_objetivo
 
 RECORTE = 2000
@@ -46,13 +46,13 @@ def _cumple(e: Exito, r: httpx.Response) -> bool:
             or (e.falta is not None and e.falta not in r.headers))
 
 
-async def lanzar(ataque: Ataque, modo: Modo) -> Ejecucion:
+async def lanzar(ataque: Ataque, modo: Modo, peticiones: list[Peticion] | None = None) -> Ejecucion:
     origen = f"203.0.113.{random.randint(1, 254)}"  # rango reservado para documentación (RFC 5737)
     # Objetivo nuevo por ejecución: el bloqueo de una no afecta a la siguiente.
     transporte = httpx.ASGITransport(app=crea_objetivo(), client=(origen, 40000), raise_app_exceptions=False)
     pasos = []
     async with httpx.AsyncClient(transport=transporte, base_url=f"http://objetivo/{modo}") as cliente:
-        for n, p in enumerate(ataque.peticiones, 1):
+        for n, p in enumerate(peticiones or ataque.peticiones, 1):
             inicio = time.perf_counter()
             r = await cliente.request(p.metodo, p.ruta, params=p.params, json=p.cuerpo, headers=p.cabeceras)
             ms = (time.perf_counter() - inicio) * 1000

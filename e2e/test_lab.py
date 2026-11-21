@@ -217,3 +217,26 @@ def test_los_ataques_nuevos_se_explican(page: Page, ataque: str, vulnerable: str
     page.get_by_role("button", name=LANZAR).click()
     expect(page.get_by_test_id("frase-vulnerable")).to_contain_text(vulnerable)
     expect(page.get_by_test_id("frase-endurecida")).to_contain_text(endurecida)
+
+
+def test_intentos_y_diccionario_ajustables(page: Page):
+    abrir(page)
+    page.get_by_role("button", name=ATAQUES["fuerza-bruta"]).click()
+    page.get_by_text("Ajustes del ataque").click()
+    page.get_by_label("Intentos").fill("8")
+    page.get_by_role("button", name=LANZAR).click()
+    expect(page.get_by_test_id("frase-vulnerable")).to_contain_text("resistió las 8 peticiones")
+    expect(page.get_by_test_id("terminal")).to_contain_text("--intentos 8")
+    page.get_by_label("Intentos").fill("")
+    page.get_by_label("Diccionario").fill("hola\ndragon2024")
+    page.get_by_role("button", name=LANZAR).click()
+    # Con la clave buena antes del bloqueo, también entra en la endurecida: el límite de intentos no la protege.
+    expect(page.get_by_test_id("frase-vulnerable")).to_contain_text("cayó en la petición 2 de 2 (admin:dragon2024 → 200)")
+    expect(page.get_by_test_id("frase-endurecida")).to_contain_text("cayó en la petición 2 de 2")
+    page.get_by_label("Intentos").fill("51")
+    page.get_by_role("button", name=LANZAR).click()
+    expect(page.get_by_role("alert")).to_contain_text("Ajustes no válidos")
+    page.get_by_label("Intentos").fill("")
+    page.get_by_label("Diccionario").fill("")
+    page.get_by_role("button", name=ATAQUES["inyeccion-sql"]).click()
+    expect(page.get_by_text("Ajustes del ataque")).to_have_count(0)

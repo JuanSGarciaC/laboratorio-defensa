@@ -35,11 +35,11 @@ function useAlFondo(dep: unknown) {
   return ref;
 }
 
-interface Props { ataque: Ataque; duelo: Duelo | null; hechos: number; modos: Modo[] }
+interface Props { ataque: Ataque; duelo: Duelo | null; hechos: number; modos: Modo[]; banderas?: string }
 
 // H3: la terminal del atacante (lo que se envía) y, al lado, el registro de cada servidor (lo que recibe y responde).
-export default function Consola({ ataque, duelo, hechos, modos }: Props) {
-  const comando = `lab lanzar ${ataque.id} --contra ${modos.join(",")}`;
+export default function Consola({ ataque, duelo, hechos, modos, banderas = "" }: Props) {
+  const comando = `lab lanzar ${ataque.id} --contra ${modos.join(",")}${banderas && ` ${banderas}`}`;
   const tecleado = useTecleo(comando, !!duelo);
   const listo = !!duelo && tecleado === comando;
   const total = duelo ? Math.max(...modos.map((m) => duelo[m].pasos.length)) : 0;
