@@ -24,6 +24,11 @@ export interface Paso {
   estado: number;
   respuesta: string;
   cumple: boolean;
+  destino: string;
+  cabeceras_peticion: Record<string, string>;
+  cabeceras_respuesta: Record<string, string>;
+  bytes: number;
+  ms: number;
 }
 
 export interface Ejecucion {

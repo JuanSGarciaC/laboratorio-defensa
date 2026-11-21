@@ -31,6 +31,16 @@ def test_fuerza_bruta_paso_a_paso():
     assert [p.estado for p in e.pasos[:6]] == [401] * 5 + [429]
 
 
+def test_cada_paso_trae_la_peticion_y_la_respuesta_en_crudo():
+    p = corre(ATAQUES["fuerza-bruta"], "endurecida").pasos[5]
+    assert p.destino == "/endurecida/login"
+    assert p.cabeceras_peticion["content-type"] == "application/json"
+    assert p.cabeceras_respuesta["content-type"] == "application/json"
+    assert p.bytes == len(p.respuesta.encode()) and p.ms >= 0
+    q = corre(ATAQUES["recorrido-rutas"], "vulnerable").pasos[0]
+    assert q.destino == "/vulnerable/archivo?nombre=..%2Fsecreto.txt"
+
+
 def test_origen_simulado_y_ejecuciones_aisladas():
     a, b = corre(ATAQUES["fuerza-bruta"], "endurecida"), corre(ATAQUES["fuerza-bruta"], "endurecida")
     assert ipaddress.ip_address(a.origen) in ipaddress.ip_network("203.0.113.0/24")
