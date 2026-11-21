@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import type { Ejecucion, Modo, Paso } from "./types";
 
 const RAZON: Record<number, string> = { 200: "OK", 401: "Unauthorized", 404: "Not Found", 422: "Unprocessable Entity", 429: "Too Many Requests", 500: "Internal Server Error" };
@@ -19,9 +20,16 @@ export default function Network({ duelo, hechos, modos, sel, onSel }: Props) {
   const filas = modos.flatMap((modo) => duelo[modo].pasos.slice(0, hechos).map((p) => ({ modo, p })))
     .sort((a, b) => a.p.n - b.p.n || modos.indexOf(a.modo) - modos.indexOf(b.modo));
   const elegida = sel && duelo[sel.modo].pasos[sel.n - 1];
+  // La fila elegida queda a la vista dentro de la tabla; la página no se mueve.
+  const caja = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const c = caja.current, fila = c?.querySelector<HTMLElement>("tr.activa");
+    if (c && fila && (fila.offsetTop < c.scrollTop + 30 || fila.offsetTop + fila.offsetHeight > c.scrollTop + c.clientHeight))
+      c.scrollTop = fila.offsetTop - c.clientHeight / 2;
+  }, [sel?.modo, sel?.n]);
   return (
     <div className="network" data-testid="network">
-      <div className="tabla-scroll">
+      <div className="tabla-scroll" ref={caja}>
         <table>
           <thead><tr><th scope="col">#</th><th scope="col">Versión</th><th scope="col">Método</th><th scope="col">Ruta</th><th scope="col">Estado</th><th scope="col">Tamaño</th><th scope="col">Tiempo</th></tr></thead>
           <tbody>

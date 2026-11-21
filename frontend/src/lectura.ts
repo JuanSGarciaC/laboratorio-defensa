@@ -8,14 +8,16 @@ export const carga = (p: Paso) => Object.values(p.cuerpo ?? p.params).join(":");
 // B2: el resultado de una versión en una frase, con los datos de la ejecución.
 export function resumen(ataque: Ataque, modo: Modo, ej: Ejecucion): string {
   const total = ej.pasos.length;
-  const prueba = ataque.exito.contiene != null ? `trajo «${ataque.exito.contiene}»` : `respondió ${ataque.exito.estado}`;
+  const { contiene, estado } = ataque.exito;
   const decisiva = ej.pasos.find((p) => p.cumple);
   if (decisiva) {
     const donde = total > 1 ? `en la petición ${decisiva.n} de ${total}` : "con la primera petición";
-    return `La versión ${VERSION[modo]} cayó ${donde} (${carga(decisiva)} → ${decisiva.estado}): la respuesta ${prueba}.`;
+    const prueba = contiene != null ? `la respuesta trajo «${contiene}»` : `el objetivo aceptó la entrada con un ${estado}`;
+    return `La versión ${VERSION[modo]} cayó ${donde} (${carga(decisiva)} → ${decisiva.estado}): ${prueba}.`;
   }
   const bloqueo = ej.pasos.find((p) => p.estado === 429);
-  const como = bloqueo ? `bloqueó la cuenta desde la petición ${bloqueo.n} con 429` : `ninguna respuesta ${prueba}`;
+  const como = bloqueo ? `bloqueó la cuenta desde la petición ${bloqueo.n} con 429`
+    : contiene != null ? `ninguna respuesta trajo «${contiene}»` : `ninguna respuesta fue un ${estado}`;
   return `La versión ${VERSION[modo]} resistió ${total > 1 ? `las ${total} peticiones` : "la petición"}: ${como}.`;
 }
 

@@ -14,7 +14,8 @@
   --radius: 12px;
   color-scheme: dark;
 }
-* { box-sizing: border-box; }
+/* Sin ligaduras: en código, ">=" debe verse como se escribe y no como "≥". */
+* { box-sizing: border-box; font-variant-ligatures: none; }
 body {
   margin: 0; min-height: 100vh; color: var(--ink); line-height: 1.55;
   font-family: "Public Sans", system-ui, sans-serif; font-variant-numeric: tabular-nums;
