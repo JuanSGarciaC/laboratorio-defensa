@@ -29,13 +29,13 @@ export function Conclusion({ ataque, duelo }: { ataque: Ataque; duelo: Record<Mo
       </div>
       <div className="diff-caja">
         <h3 className="eyebrow">Qué cambia en el código <span className="leyenda"><span className="menos">− vulnerable</span> <span className="mas">+ endurecida</span></span></h3>
-        <pre className="diff" data-testid="diff">
+        <pre className="diff" data-testid="diff" tabIndex={0} aria-label="Diferencias de código"><code>
           {lineas.map((l, i) => (
             <span key={i} className={`dl${l.tipo === "-" ? " menos" : l.tipo === "+" ? " mas" : ""}${l.codigo ? " clave" : ""}`}>
               {`${l.tipo} ${l.texto}\n`}
             </span>
           ))}
-        </pre>
+        </code></pre>
       </div>
     </section>
   );

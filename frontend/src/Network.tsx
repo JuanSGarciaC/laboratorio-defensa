@@ -31,15 +31,15 @@ export default function Network({ duelo, hechos, modos, sel, onSel }: Props) {
     <div className="network" data-testid="network">
       <div className="tabla-scroll" ref={caja}>
         <table>
-          <thead><tr><th scope="col">#</th><th scope="col">Versión</th><th scope="col">Método</th><th scope="col">Ruta</th><th scope="col">Estado</th><th scope="col">Tamaño</th><th scope="col">Tiempo</th></tr></thead>
+          <thead><tr><th scope="col">#</th><th scope="col" className="c-version">Versión</th><th scope="col" className="c-metodo">Método</th><th scope="col">Ruta</th><th scope="col">Estado</th><th scope="col">Tamaño</th><th scope="col">Tiempo</th></tr></thead>
           <tbody>
             {filas.map(({ modo, p }) => {
               const activa = sel?.modo === modo && sel.n === p.n;
               return (
                 <tr key={`${modo}-${p.n}`} data-modo={modo} className={`${activa ? "activa" : ""}${p.cumple ? " cumple" : ""}`} onClick={() => onSel({ modo, n: p.n })}>
                   <td><button aria-pressed={activa} aria-label={`Ver la petición ${p.n} a la versión ${modo}`} onClick={(e) => { e.stopPropagation(); onSel({ modo, n: p.n }); }}>{p.n}</button></td>
-                  <td className={`v-${modo}`}>{modo}</td>
-                  <td>{p.metodo}</td>
+                  <td className={`c-version v-${modo}`}>{modo}</td>
+                  <td className="c-metodo">{p.metodo}</td>
                   <td className="ruta">{p.destino}</td>
                   <td className={`e${String(p.estado)[0]}xx`}>{p.estado}{p.cumple ? " ✔" : ""}</td>
                   <td>{p.bytes} B</td>

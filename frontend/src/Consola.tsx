@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { carga } from "./lectura";
+import { NOMBRE } from "./Topologia";
 import type { Ataque, Ejecucion, Modo } from "./types";
 
 type Duelo = Record<Modo, Ejecucion>;
@@ -27,7 +28,10 @@ function useTecleo(texto: string, activo: boolean) {
 // Mantiene a la vista la última línea, moviendo solo el panel, nunca la página.
 function useAlFondo(dep: unknown) {
   const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => { const el = ref.current; if (el) el.scrollTop = el.scrollHeight; }, [dep]);
+  // El desvanecido de arriba solo aparece si hay líneas ocultas por encima.
+  const marca = () => { const el = ref.current; el?.classList.toggle("desplazado", el.scrollTop > 2); };
+  useEffect(() => { const el = ref.current; if (el) { el.scrollTop = el.scrollHeight; marca(); } }, [dep]);
+  useEffect(() => { const el = ref.current; el?.addEventListener("scroll", marca); return () => el?.removeEventListener("scroll", marca); }, []);
   return ref;
 }
 
@@ -77,15 +81,17 @@ function Registro({ modo, ej, n }: { modo: Modo; ej: Ejecucion | null; n: number
   const pasos = ej ? ej.pasos.slice(0, n) : [];
   const ref = useAlFondo(pasos.length);
   return (
-    <div className={`registro r-${modo}`} ref={ref} data-testid={`registro-${modo}`} role="log" aria-label={`Registro del servidor ${modo}`}>
-      <p className="r-titulo">servidor /{modo} · access.log</p>
-      {pasos.length === 0 && <p className="muted">esperando peticiones…</p>}
-      {pasos.map((p) => (
-        <p key={p.n} className={`r-linea e${String(p.estado)[0]}xx${p.cumple ? " r-cumple" : ""}`}>
-          {ej!.origen} "{p.metodo} {p.destino}" <strong>{p.estado}</strong> {p.bytes}B {p.ms}ms
-          <span className="r-cuerpo">{p.respuesta.replace(/\s+/g, " ").slice(0, 90)}</span>
-        </p>
-      ))}
+    <div className={`registro r-${modo}`}>
+      <p className="r-titulo"><span className="r-punto" aria-hidden="true">●</span> {NOMBRE[modo]} <span className="muted">· access.log</span></p>
+      <div className="r-cuerpo-log" ref={ref} data-testid={`registro-${modo}`} role="log" aria-label={`Registro del servidor, ${NOMBRE[modo].toLowerCase()}`}>
+        {pasos.length === 0 && <p className="muted">esperando peticiones…</p>}
+        {pasos.map((p) => (
+          <p key={p.n} className={`r-linea e${String(p.estado)[0]}xx${p.cumple ? " r-cumple" : ""}`}>
+            {ej!.origen} "{p.metodo} {p.destino}" <strong>{p.estado}</strong> {p.bytes}B {p.ms}ms
+            <span className="r-cuerpo">{p.respuesta.replace(/\s+/g, " ").slice(0, 90)}</span>
+          </p>
+        ))}
+      </div>
     </div>
   );
 }
