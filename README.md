@@ -2,22 +2,28 @@
 
 ![CI](https://github.com/JuanSGarciaC/laboratorio-defensa/actions/workflows/ci.yml/badge.svg)
 
-Una aplicación web pequeña escrita dos veces, **vulnerable** y **endurecida**, y un catálogo de ataques que se
-lanza con un botón **contra las dos a la vez**. Dos carriles en paralelo muestran cada petición viajar hasta su
-objetivo y una prueba objetiva dice si el ataque consiguió lo que buscaba. La misma carga, el mismo botón: lo único
-que cambia es el código que la recibe.
+Una aplicación web pequeña escrita dos veces, **vulnerable** y **endurecida**, y un catálogo de siete ataques que se
+lanza con un botón **contra las dos a la vez**. Una consola de pentesting enseña lo que envía el atacante, lo que
+registra cada servidor y cada petición HTTP en crudo; una prueba objetiva dice si el ataque consiguió lo que buscaba
+y una frase explica por qué. La misma carga, el mismo botón: lo único que cambia es el código que la recibe.
 
-![Fuerza bruta contra la versión vulnerable y contra la endurecida](docs/img/fuerza-bruta.gif)
+![Fuerza bruta: resumen, terminal del atacante, resultado con el diff y pestaña Network](docs/img/fuerza-bruta.gif)
 
 *Veinte contraseñas contra la cuenta `admin`. En la versión vulnerable entra la número 12; en la endurecida,
 la cuenta se bloquea al quinto fallo y la contraseña correcta ya no sirve. Los pasos son los de la ejecución real;
 el ritmo es de presentación (la ejecución entera dura milisegundos).*
 
-![Inyección SQL contra las dos versiones, con la petición y la respuesta de cada una](docs/img/02-inyeccion-sql.png)
+![La consola tras la fuerza bruta: una barra por versión, la terminal del atacante y el access.log de cada servidor](docs/img/01-consola.png)
 
-| El mismo código, antes y después | Matriz de resultados |
+| Resultado en lenguaje claro y diff | Network: petición y respuesta en crudo |
 |---|---|
-| ![Código vulnerable y endurecido](docs/img/03-codigo.png) | ![Matriz](docs/img/04-matriz.png) |
+| ![Resultado y diff de la inyección SQL](docs/img/02-resultado-y-diff.png) | ![Pestaña Network con la petición 12 de la fuerza bruta](docs/img/03-network.png) |
+
+| Matriz de resultados | Guía de primera vez |
+|---|---|
+| ![Matriz de los siete ataques](docs/img/04-matriz.png) | ![Guía, paso 3 de 5](docs/img/05-guia.png) |
+
+![Redirección abierta: resumen, consola, resultado y diff](docs/img/06-redireccion-abierta.png)
 
 ## Qué es y qué no es
 
@@ -30,18 +36,25 @@ el ritmo es de presentación (la ejecución entera dura milisegundos).*
 
 ## Los ataques
 
-| Ataque | OWASP Top 10 | MITRE ATT&CK | Qué hace | Cómo se comprueba el éxito |
-|---|---|---|---|---|
-| Inyección SQL | A03:2021 Inyección | T1190 | Añade un `UNION` a la búsqueda para leer la tabla de usuarios | La respuesta contiene el correo del administrador |
-| XSS reflejado | A03:2021 Inyección | T1059.007 | Busca una etiqueta `<script>` | La página la devuelve sin escapar |
-| Recorrido de rutas | A01:2021 Pérdida de control de acceso | T1190 | Pide `../secreto.txt` | La respuesta contiene el texto del archivo señuelo |
-| Fuerza bruta de login | A07:2021 Fallos de identificación y autenticación | T1110.001 | Prueba 20 contraseñas comunes | Algún intento responde 200 |
+| Ataque | OWASP Top 10 | CWE | MITRE ATT&CK | Qué hace | Cómo se comprueba el éxito |
+|---|---|---|---|---|---|
+| Inyección SQL | A03:2021 Inyección | CWE-89 | T1190 | Añade un `UNION` a la búsqueda para leer la tabla de usuarios | La respuesta contiene el correo del administrador |
+| XSS reflejado | A03:2021 Inyección | CWE-79 | T1059.007 | Busca una etiqueta `<script>` | La página la devuelve sin escapar |
+| Recorrido de rutas | A01:2021 Pérdida de control de acceso | CWE-22 | T1190 | Pide `../secreto.txt` | La respuesta contiene el texto del archivo señuelo |
+| Fuerza bruta de login | A07:2021 Fallos de identificación y autenticación | CWE-307 | T1110.001 | Prueba 20 contraseñas comunes (ajustable) | Algún intento responde 200 |
+| Acceso a pedido ajeno (IDOR) | A01:2021 Pérdida de control de acceso | CWE-639 | T1190 | Con sesión de cliente, pide el pedido 2, que es del administrador | La respuesta contiene la dirección del administrador |
+| Redirección abierta | A01:2021 Pérdida de control de acceso | CWE-601 | T1566.002 | Pasa un dominio ajeno (`https://…` y `//…`) a `salir?siguiente=` | La cabecera `Location` apunta a `phishing.invalid` |
+| Clickjacking (cabeceras de seguridad) | A05:2021 Configuración de seguridad incorrecta | CWE-1021 | T1189 | Pide la portada y mira si se puede enmarcar | La respuesta llega sin `X-Frame-Options` |
 
-El catálogo está en [`backend/app/ataques.yaml`](backend/app/ataques.yaml): añadir un ataque es añadir una entrada.
+Para el clickjacking no hay una técnica de ATT&CK exacta; T1189 (Drive-by Compromise) es la más cercana.
+
+El catálogo está en [`backend/app/ataques.yaml`](backend/app/ataques.yaml). Cada entrada trae, además de la carga y
+la prueba de éxito, `falla` (por qué cae la vulnerable) y `defensa` (qué cambia en la endurecida): el panel los
+enseña antes de lanzar y el informe exportado los usa como hipótesis.
 
 ## Resultados medidos
 
-Salida de `GET /api/matriz` el 2026-11-13. La misma comprobación corre en cada push
+Salida de `GET /api/matriz` el 2026-11-20. La misma comprobación corre en cada push
 (`test_cada_ataque_funciona_en_vulnerable_y_falla_en_endurecida`).
 
 | Ataque | Versión vulnerable | Versión endurecida |
@@ -50,27 +63,36 @@ Salida de `GET /api/matriz` el 2026-11-13. La misma comprobación corre en cada 
 | XSS reflejado | Tuvo éxito | No tuvo éxito |
 | Recorrido de rutas | Tuvo éxito | No tuvo éxito |
 | Fuerza bruta de login | Tuvo éxito (petición 12 de 20) | No tuvo éxito (bloqueo en la petición 6) |
+| Acceso a pedido ajeno (IDOR) | Tuvo éxito (petición 2) | No tuvo éxito (404) |
+| Redirección abierta | Tuvo éxito | No tuvo éxito (redirige a `/`) |
+| Clickjacking | Tuvo éxito | No tuvo éxito |
 
-Son cuatro ataques escritos para este objetivo: la tabla demuestra que cada corrección cierra su fallo, no que
+Son siete ataques escritos para este objetivo: la tabla demuestra que cada corrección cierra su fallo, no que
 la versión endurecida resista cualquier ataque.
 
-## El antes y el después
+## El panel
 
-El panel enseña el código real de cada ruta, leído del propio programa con `inspect.getsource`
-([`backend/app/objetivo.py`](backend/app/objetivo.py)). La búsqueda:
-
-```python
-def buscar_vulnerable(db, q):
-    # El texto del visitante se pega dentro del SQL y vuelve a la página tal cual.
-    filas = db.execute(f"SELECT nombre, precio FROM productos WHERE nombre LIKE '%{q}%'").fetchall()
-    return _pagina(q, filas)
-
-
-def buscar_endurecida(db, q):
-    # El texto viaja como parámetro (nunca es SQL) y se escapa antes de mostrarlo.
-    filas = db.execute("SELECT nombre, precio FROM productos WHERE nombre LIKE ?", (f"%{q}%",)).fetchall()
-    return _pagina(html.escape(q), filas)
-```
+- **Resumen de 30 segundos.** Antes de lanzar: qué intenta el ataque, por qué debería caer la vulnerable y qué
+  cambia en la endurecida, con su OWASP, CWE y ATT&CK.
+- **Consola.** A la izquierda, la terminal del atacante con una línea por petición real (carga y respuesta de cada
+  versión); a la derecha, el `access.log` de cada servidor. Encima, una barra por versión con una marca por
+  petición. Se puede pausar, avanzar paso a paso, ir a 1× o 4× y ver una sola versión.
+- **Resultado y diff.** Una frase por versión generada con la ejecución ("cayó en la petición 12 de 20
+  (admin:dragon2024 → 200)…", "bloqueó la cuenta desde la petición 6 con 429") y, al lado, el diff entre las dos
+  funciones con las líneas que cambian resaltadas. El código es el real, leído con `inspect.getsource`
+  ([`backend/app/objetivo.py`](backend/app/objetivo.py)).
+- **Network.** Como la pestaña de DevTools: método, ruta, estado, tamaño y tiempo de cada petición, y la petición y
+  la respuesta HTTP en crudo con sus cabeceras. Las cabeceras y los tiempos son los reales (dentro del proceso: unos
+  20 ms en el login vulnerable por `scrypt`, unos 1 ms cuando la endurecida ya bloquea); el cuerpo de la petición
+  se reconstruye desde la carga del catálogo.
+- **Exportar informe.** Un Markdown con hipótesis, experimento, resultado petición a petición, conclusión y diff.
+- **Guía de primera vez.** Cinco pasos que resaltan cada zona; se recuerda en `localStorage` y se puede volver a
+  ver con «? Ver la guía».
+- **Ajustes de la fuerza bruta.** Número de intentos y diccionario propio. El backend los valida: de 1 a 50 intentos,
+  hasta 50 entradas de 1 a 32 caracteres, sin caracteres de control y sin campos extra; solo los admite un ataque que
+  declare `variable` en el catálogo. El ajuste cambia únicamente la clave del cuerpo: método, ruta y destino siguen
+  siendo los del catálogo y el objetivo sigue siendo el interno. Con la clave correcta antes del bloqueo, también
+  cae la endurecida: el límite de intentos no protege de una contraseña adivinada a la primera, y el panel lo dice.
 
 ## Arquitectura
 
@@ -82,7 +104,7 @@ flowchart LR
   L -- ASGITransport, sin red --> O[Objetivo: /vulnerable y /endurecida]
   O --> DB[(SQLite en memoria, solo lectura)]
   O --> F[lab/publico y archivo señuelo]
-  L -- pasos + prueba de éxito --> A --> P
+  L -- pasos + cabeceras + prueba de éxito --> A --> P
 ```
 
 ## Decisiones de diseño
@@ -93,10 +115,13 @@ flowchart LR
 | Dos rutas lado a lado en vez de un interruptor | Sin estado global: dos visitantes no se pisan | El modo va en la ruta, cosa que una aplicación real no haría |
 | Un objetivo nuevo por ejecución | El bloqueo de una ejecución no afecta a la siguiente | El bloqueo de cuentas vive en memoria y no sobrevive al lanzamiento |
 | Lo vulnerable está acotado | La inyección corre sobre una base de solo lectura; el recorrido de rutas no sale de `lab/` | Son vulnerabilidades reales con consecuencias de laboratorio |
-| Los carriles reproducen dos ejecuciones ya terminadas, a la par | Cada ejecución dura milisegundos y no se vería | Los pasos son reales; los tiempos, no. Cada versión corre contra su propio objetivo, sin estado compartido |
-| Origen simulado (`203.0.113.0/24`, RFC 5737) | Prepara el bloqueo por origen de la siguiente entrega | En esta entrega solo viaja en la respuesta de la API |
+| El lanzador no sigue redirecciones | La redirección abierta se comprueba en la cabecera `Location`, sin visitar el destino | Un navegador sí la seguiría |
+| La consola reproduce dos ejecuciones ya terminadas, a la par | Cada ejecución dura milisegundos y no se vería | Los pasos, las cabeceras y los tiempos son reales; el ritmo, no |
+| Sesión simulada en el IDOR (cabecera `x-sesion`) | El fallo que se estudia es la falta de comprobación del dueño | No hay login ni cookies de verdad |
+| Ajustes solo con listas cortas y validadas | Dejar elegir la carga sin abrir el lanzador a otra cosa | Solo la fuerza bruta los admite |
+| Origen simulado (`203.0.113.0/24`, RFC 5737) | Prepara el bloqueo por origen de la siguiente entrega | En esta entrega solo viaja en la respuesta de la API y en el `access.log` |
 | Contraseñas con `scrypt` en los dos modos | El fallo que se estudia en el login es la falta de límite de intentos | No hay sesiones ni segundo factor |
-| Límite de 30 lanzamientos por minuto y visitante | Una demo pública no debe poder saturarse con un bucle | Vive en memoria del proceso; la IP no se guarda en ningún otro sitio |
+| Límite de 30 lanzamientos por minuto y visitante (`LIMITE_POR_MINUTO`) | Una demo pública no debe poder saturarse con un bucle | Vive en memoria del proceso; la IP no se guarda en ningún otro sitio. La CI lo sube para la suite e2e |
 
 ## Ejecutar con Docker
 
@@ -104,26 +129,22 @@ flowchart LR
 docker compose up --build        # http://localhost:8095
 ```
 
-Otro puerto: `$env:LAB_PORT = "9000"` antes del comando.
+Otro puerto: `$env:LAB_PORT = "9000"` antes del comando. Otro límite de lanzamientos:
+`$env:LIMITE_POR_MINUTO = "60"`.
 
 ## Ejecutar sin Docker (Windows, PowerShell)
 
-Requisitos: Python 3.12 y Node.js 22.
+Requisitos: Python 3.12 y Node.js 22. Con el panel compilado, la propia API lo sirve en el mismo puerto:
 
 ```powershell
-cd backend
 python -m venv .venv
-.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
-pytest -q
-uvicorn app.main:app --reload              # http://localhost:8000/docs
+.venv\Scripts\python -m pip install -r backend\requirements.txt
+cd frontend; npm ci; npm run build; cd ..
+cd backend; ..\.venv\Scripts\python -m uvicorn app.main:app --port 8095    # http://localhost:8095
 ```
 
-```powershell
-cd frontend                                # otra terminal
-npm install
-npm run dev                                # http://localhost:5173
-```
+Para desarrollar el panel con recarga en caliente: `uvicorn app.main:app --reload` (puerto 8000) en `backend` y
+`npm run dev` en `frontend` (http://localhost:5173, que reenvía `/api` al 8000).
 
 Para atacar el objetivo a mano en local:
 
@@ -137,37 +158,41 @@ curl "http://localhost:8000/objetivo/vulnerable/archivo?nombre=../secreto.txt"
 | Método y ruta | Descripción |
 |---|---|
 | `GET /api/health` | Estado del servicio |
-| `GET /api/ataques` | Catálogo, con el código vulnerable y endurecido de la ruta que ataca cada uno |
-| `POST /api/ataques/{id}/lanzar?modo=vulnerable\|endurecida` | Ejecuta el ataque y devuelve cada petición, su respuesta y si cumple la prueba de éxito (404 si no existe, 422 si el modo no es válido, 429 al pasar el límite) |
+| `GET /api/ataques` | Catálogo, con `falla`, `defensa`, CWE, la prueba de éxito y el código vulnerable y endurecido de la ruta que ataca cada uno |
+| `POST /api/ataques/{id}/lanzar?modo=vulnerable\|endurecida` | Ejecuta el ataque y devuelve cada petición con su ruta completa, cabeceras, respuesta, tamaño, duración y si cumple la prueba de éxito. Cuerpo opcional `{"intentos": 8, "diccionario": ["…"]}` solo en la fuerza bruta. 404 si no existe, 422 si el modo o los ajustes no son válidos, 429 al pasar el límite |
 | `GET /api/matriz` | Todos los ataques en los dos modos |
 
 ## Pruebas
 
 ```powershell
-cd backend; pytest -q                      # 45 pruebas, ninguna toca la red
+cd backend; ..\.venv\Scripts\python -m pytest -q          # 77 pruebas, ninguna toca la red
 ```
 
-Cubren las tres rutas en los dos modos, que ningún modo lee fuera de `lab/` (rutas absolutas, de Windows, con byte
-nulo), que la base no se puede modificar, cada ataque contra cada modo, el aislamiento entre ejecuciones, el límite
-de uso y que el objetivo queda cerrado por defecto.
+Cubren las seis rutas en los dos modos, que ningún modo lee fuera de `lab/` (rutas absolutas, de Windows, con byte
+nulo), que la base no se puede modificar, que la endurecida no redirige fuera (`https://`, `//`, `/\`, `javascript:`),
+cada ataque contra cada modo, el aislamiento entre ejecuciones, los límites de los ajustes, que un ajuste no cambia la
+ruta, el límite de uso y que el objetivo queda cerrado por defecto.
 
-Extremo a extremo, en un navegador real:
+Extremo a extremo, en un navegador real, contra el laboratorio en marcha (Docker o uvicorn en el 8095):
 
 ```powershell
-docker compose up -d --build --wait
-uv run --with pytest --with playwright pytest e2e -q                 # 11 pruebas; en local, $env:BROWSER_CHANNEL = "msedge"
-uv run --with playwright --with pillow scripts/capturas.py           # regenera capturas y GIF
+$env:LIMITE_POR_MINUTO = "1000"            # antes de arrancar el servidor: la suite lanza más de 30 ataques por minuto
+uv run --with pytest --with playwright pytest e2e -q                 # 22 pruebas; en local, $env:BROWSER_CHANNEL = "msedge"
+uv run --with playwright --with pillow scripts/capturas.py           # regenera las capturas y el GIF de docs/img
 ```
 
-Comprueban que el resultado de cada carril coincide con la API para cada ataque, que la comparación petición a
-petición y el código de las dos versiones son los reales, que la matriz y la barra lateral son las de la API, y que un fallo de la API o el límite de uso se muestran y dejan el botón utilizable.
+Comprueban que el resultado de cada ataque coincide con la API, la frase de cada uno, el diff, la terminal, el
+`access.log` y Network en crudo, la pausa, el paso a paso y la vista de una sola versión, la exportación del informe,
+la guía, los ajustes (y su rechazo fuera de límites), la matriz y que un fallo de la API o el límite de uso se
+muestran y dejan el botón utilizable.
 
 ## Estructura
 
 ```text
 backend/app/        objetivo (rutas vulnerables y endurecidas), catalogo, lanzador, main (API), ataques.yaml, lab/
 backend/tests/      pruebas automáticas
-frontend/src/       panel React (App, Carril)
+frontend/src/       panel React: App, Consola (terminal y access.log), Network, Topologia, Explicacion
+                    (resumen, resultado y diff), Guia, informe, lectura (frases y diff)
 e2e/                pruebas en navegador
 scripts/            capturas.py: capturas y GIF
 docs/superpowers/   diseño y plan de esta entrega

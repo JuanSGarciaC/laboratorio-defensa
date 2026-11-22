@@ -16,6 +16,9 @@ ATAQUES = {
     "xss-reflejado": "XSS reflejado",
     "recorrido-rutas": "Recorrido de rutas",
     "fuerza-bruta": "Fuerza bruta de login",
+    "idor": "Acceso a pedido ajeno (IDOR)",
+    "redireccion-abierta": "Redirección abierta",
+    "clickjacking": "Clickjacking (cabeceras de seguridad)",
 }
 MODOS = ("vulnerable", "endurecida")
 LANZAR = "Lanzar contra las dos"
@@ -28,6 +31,8 @@ def page():
         nav = p.chromium.launch(channel=os.environ.get("BROWSER_CHANNEL") or None)
         # Sin movimiento la reproducción es inmediata; el ritmo de presentación lo ejercita scripts/capturas.py.
         pagina = nav.new_context(viewport={"width": 1360, "height": 1000}, reduced_motion="reduce").new_page()
+        # La guía de primera vez tiene su propia prueba; aquí se da por vista para que no tape nada.
+        pagina.add_init_script("localStorage.setItem('lab-guia', 'vista')")
         # Solo cuentan los errores de la propia aplicación.
         pagina.on("console", lambda m: m.type == "error" and BASE in (m.location.get("url") or "") and errores.append(f"{m.text} {m.location.get('url')}"))
         pagina.on("pageerror", lambda e: errores.append(str(e)))
@@ -63,23 +68,101 @@ def test_la_fuerza_bruta_se_compara_peticion_a_peticion(page: Page):
     abrir(page)
     page.get_by_role("button", name=ATAQUES["fuerza-bruta"]).click()
     page.get_by_role("button", name=LANZAR).click()
-    endurecida, vulnerable = page.locator(".col-endurecida .paso"), page.locator(".col-vulnerable .paso")
+    red = page.get_by_test_id("network")
+    endurecida, vulnerable = red.locator("tr[data-modo=endurecida]"), red.locator("tr[data-modo=vulnerable]")
     expect(endurecida).to_have_count(20)
-    expect(endurecida.nth(4)).to_have_text("401")
-    expect(endurecida.nth(5)).to_have_text("429")
-    expect(vulnerable.nth(11)).to_have_text("200")
-    # Al terminar queda a la vista la petición que decidió el ataque, en las dos columnas.
-    expect(vulnerable.nth(11)).to_have_attribute("aria-pressed", "true")
-    expect(endurecida.nth(11)).to_have_attribute("aria-pressed", "true")
-    expect(page.locator(".col-endurecida pre").last).to_contain_text("Cuenta bloqueada")
+    expect(endurecida.nth(4).locator("td").nth(4)).to_have_text("401")
+    expect(endurecida.nth(5).locator("td").nth(4)).to_have_text("429")
+    expect(vulnerable.nth(11).locator("td").nth(4)).to_have_text("200 ✔")
+    # Al terminar queda a la vista la petición que decidió el ataque, en crudo.
+    expect(vulnerable.nth(11).get_by_role("button")).to_have_attribute("aria-pressed", "true")
+    expect(page.get_by_test_id("crudo-respuesta")).to_contain_text("HTTP/1.1 200 OK")
+    expect(page.get_by_test_id("crudo-respuesta")).to_contain_text("Sesión iniciada")
+    endurecida.nth(5).get_by_role("button").click()
+    expect(page.get_by_test_id("crudo-peticion")).to_contain_text("POST /endurecida/login HTTP/1.1")
+    expect(page.get_by_test_id("crudo-peticion")).to_contain_text("content-type: application/json")
+    expect(page.get_by_test_id("crudo-respuesta")).to_contain_text("HTTP/1.1 429 Too Many Requests")
+    expect(page.get_by_test_id("crudo-respuesta")).to_contain_text("Cuenta bloqueada")
+    # La terminal del atacante y el registro de cada servidor cuentan lo mismo.
+    expect(page.get_by_test_id("terminal")).to_contain_text("[12/20] POST /login admin:dragon2024")
+    expect(page.get_by_test_id("terminal")).to_contain_text("vulnerable: prueba de éxito cumplida en la petición 12")
+    expect(page.get_by_test_id("registro-endurecida")).to_contain_text('"POST /endurecida/login" 429')
 
 
-def test_la_pestana_codigo_ensena_las_dos_versiones(page: Page):
+def test_el_informe_se_exporta_en_markdown(page: Page):
+    abrir(page)
+    page.get_by_role("button", name=ATAQUES["fuerza-bruta"]).click()
+    page.get_by_role("button", name=LANZAR).click()
+    with page.expect_download() as descarga:
+        page.get_by_role("button", name="↓ Exportar informe (.md)").click()
+    assert descarga.value.suggested_filename == "informe-fuerza-bruta.md"
+    texto = open(descarga.value.path(), encoding="utf-8").read()
+    for seccion in ("## Hipótesis", "## Experimento", "## Resultado", "## Conclusión", "```diff"):
+        assert seccion in texto
+    assert "CWE-307 · MITRE ATT&CK T1110.001" in texto
+    assert "| 12 | `admin:dragon2024` | 200 ✔ | 429 |" in texto
+    assert "La hipótesis se confirma" in texto
+
+
+def test_la_guia_sale_la_primera_vez_y_se_puede_volver_a_ver(page: Page):
+    ctx = page.context.browser.new_context(viewport={"width": 1360, "height": 1000}, reduced_motion="reduce")
+    nueva = ctx.new_page()
+    nueva.goto(BASE)
+    guia = nueva.get_by_test_id("guia")
+    expect(guia).to_contain_text("1 de 5")
+    expect(nueva.locator(".ataques.guia-foco")).to_have_count(1)
+    for _ in range(4):
+        guia.get_by_role("button", name="Siguiente").click()
+    expect(guia).to_contain_text("5 de 5")
+    expect(nueva.locator(".detalle.guia-foco")).to_have_count(1)
+    guia.get_by_role("button", name="Empezar").click()
+    expect(guia).to_have_count(0)
+    nueva.reload()
+    expect(nueva.get_by_role("button", name=LANZAR)).to_be_enabled()
+    expect(nueva.get_by_test_id("guia")).to_have_count(0)  # ya vista: no vuelve sola
+    nueva.get_by_role("button", name="? Ver la guía").click()
+    expect(nueva.get_by_test_id("guia")).to_contain_text("1 de 5")
+    nueva.keyboard.press("Escape")
+    expect(nueva.get_by_test_id("guia")).to_have_count(0)
+    ctx.close()
+
+
+def test_pausa_paso_y_una_sola_version(page: Page):
+    abrir(page)
+    page.get_by_role("button", name=ATAQUES["fuerza-bruta"]).click()
+    page.get_by_role("button", name="❚❚ Pausa").click()
+    page.get_by_role("button", name=LANZAR).click()
+    filas = page.get_by_test_id("network").locator("tbody tr")
+    expect(page.get_by_role("button", name="Paso ▸")).to_be_enabled()
+    page.get_by_role("button", name="Paso ▸").click()
+    page.get_by_role("button", name="Paso ▸").click()
+    expect(filas).to_have_count(4)
+    page.get_by_role("button", name="Solo vulnerable").click()
+    expect(filas).to_have_count(2)
+    expect(page.get_by_test_id("registro-endurecida")).to_have_count(0)
+    expect(page.get_by_test_id("carril-endurecida")).to_have_count(0)
+    page.get_by_role("button", name="▶ Seguir").click()
+    expect(filas).to_have_count(20)
+    page.get_by_role("button", name="Ambas").click()
+    expect(filas).to_have_count(40)
+
+
+def test_el_diff_resalta_la_linea_que_cambia(page: Page):
     abrir(page)
     page.get_by_role("button", name=ATAQUES["inyeccion-sql"]).click()
-    page.get_by_role("tab", name="Código").click()
-    expect(page.locator(".col-vulnerable pre")).to_contain_text("LIKE '%{q}%'")
-    expect(page.locator(".col-endurecida pre")).to_contain_text("LIKE ?")
+    diff = page.get_by_test_id("diff")
+    expect(diff.locator(".menos.clave").first).to_contain_text("LIKE '%{q}%'")
+    expect(diff.locator(".mas.clave").first).to_contain_text("LIKE ?")
+    expect(diff.locator(".dl:not(.menos):not(.mas)").first).to_contain_text("def buscar(db, q):")
+
+
+def test_el_briefing_y_el_resultado_se_explican(page: Page):
+    abrir(page)
+    page.get_by_role("button", name=ATAQUES["fuerza-bruta"]).click()
+    expect(page.get_by_label("Qué vas a ver")).to_contain_text("No hay límite de intentos")
+    page.get_by_role("button", name=LANZAR).click()
+    expect(page.get_by_test_id("frase-vulnerable")).to_contain_text("cayó en la petición 12 de 20 (admin:dragon2024 → 200)")
+    expect(page.get_by_test_id("frase-endurecida")).to_contain_text("bloqueó la cuenta desde la petición 6 con 429")
 
 
 def test_la_matriz_y_la_barra_lateral_son_las_de_la_api(page: Page):
@@ -121,3 +204,39 @@ def test_el_objetivo_no_es_accesible(page: Page):
 def test_sin_errores_de_consola_propios():
     # Los dos fallos provocados arriba (petición abortada y 429) son esperados.
     assert [e for e in errores if "lanzar" not in e] == []
+
+
+@pytest.mark.parametrize(("ataque", "vulnerable", "endurecida"), [
+    ("idor", "cayó en la petición 2 de 2 (id=2 → 200): la respuesta trajo «Av. Señuelo 42»", "ninguna respuesta trajo «Av. Señuelo 42»"),
+    ("redireccion-abierta", "la cabecera location traía «phishing.invalid»", "ninguna cabecera location traía «phishing.invalid»"),
+    ("clickjacking", "la respuesta llegó sin la cabecera x-frame-options", "todas las respuestas traían la cabecera x-frame-options"),
+])
+def test_los_ataques_nuevos_se_explican(page: Page, ataque: str, vulnerable: str, endurecida: str):
+    abrir(page)
+    page.get_by_role("button", name=ATAQUES[ataque]).click()
+    page.get_by_role("button", name=LANZAR).click()
+    expect(page.get_by_test_id("frase-vulnerable")).to_contain_text(vulnerable)
+    expect(page.get_by_test_id("frase-endurecida")).to_contain_text(endurecida)
+
+
+def test_intentos_y_diccionario_ajustables(page: Page):
+    abrir(page)
+    page.get_by_role("button", name=ATAQUES["fuerza-bruta"]).click()
+    page.get_by_text("Ajustes del ataque").click()
+    page.get_by_label("Intentos").fill("8")
+    page.get_by_role("button", name=LANZAR).click()
+    expect(page.get_by_test_id("frase-vulnerable")).to_contain_text("resistió las 8 peticiones")
+    expect(page.get_by_test_id("terminal")).to_contain_text("--intentos 8")
+    page.get_by_label("Intentos").fill("")
+    page.get_by_label("Diccionario").fill("hola\ndragon2024")
+    page.get_by_role("button", name=LANZAR).click()
+    # Con la clave buena antes del bloqueo, también entra en la endurecida: el límite de intentos no la protege.
+    expect(page.get_by_test_id("frase-vulnerable")).to_contain_text("cayó en la petición 2 de 2 (admin:dragon2024 → 200)")
+    expect(page.get_by_test_id("frase-endurecida")).to_contain_text("cayó en la petición 2 de 2")
+    page.get_by_label("Intentos").fill("51")
+    page.get_by_role("button", name=LANZAR).click()
+    expect(page.get_by_role("alert")).to_contain_text("Ajustes no válidos")
+    page.get_by_label("Intentos").fill("")
+    page.get_by_label("Diccionario").fill("")
+    page.get_by_role("button", name=ATAQUES["inyeccion-sql"]).click()
+    expect(page.get_by_text("Ajustes del ataque")).to_have_count(0)

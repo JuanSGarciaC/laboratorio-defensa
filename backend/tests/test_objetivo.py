@@ -81,4 +81,46 @@ def test_bloqueo_tras_cinco_fallos_solo_en_endurecida():
 
 def test_fuentes_expone_las_dos_versiones():
     assert "LIKE '%{q}%'" in FUENTES["buscar"]["vulnerable"] and "?" in FUENTES["buscar"]["endurecida"]
-    assert set(FUENTES) == {"login", "buscar", "archivo"}
+    assert set(FUENTES) == {"login", "buscar", "archivo", "pedido", "salir", "inicio"}
+
+
+SESION = {"x-sesion": "sesion-cliente-lab"}
+
+
+def test_pedido_exige_sesion(c, modo):
+    assert c.get(f"/{modo}/pedido", params={"id": 1}).status_code == 401
+    assert c.get(f"/{modo}/pedido", params={"id": 1}, headers={"x-sesion": "inventada"}).status_code == 401
+
+
+def test_pedido_propio_en_ambos_modos(c, modo):
+    r = c.get(f"/{modo}/pedido", params={"id": 1}, headers=SESION)
+    assert r.status_code == 200 and r.json()["producto"] == "Ratón inalámbrico"
+
+
+def test_pedido_ajeno_solo_en_vulnerable(c):
+    assert "Av. Señuelo 42" in c.get("/vulnerable/pedido", params={"id": 2}, headers=SESION).text
+    r = c.get("/endurecida/pedido", params={"id": 2}, headers=SESION)
+    assert r.status_code == 404 and "Señuelo" not in r.text
+
+
+@pytest.mark.parametrize("siguiente", ["https://phishing.invalid/x", "//phishing.invalid/x"])
+def test_redireccion_ajena_en_vulnerable(c, siguiente):
+    assert c.get("/vulnerable/salir", params={"siguiente": siguiente}, follow_redirects=False).headers["location"] == siguiente
+
+
+@pytest.mark.parametrize("siguiente", ["https://phishing.invalid/x", "//phishing.invalid/x", "/\\phishing.invalid/x", "javascript:alert(1)"])
+def test_la_endurecida_no_redirige_fuera(c, siguiente):
+    r = c.get("/endurecida/salir", params={"siguiente": siguiente}, follow_redirects=False)
+    assert r.status_code == 302 and r.headers["location"] == "/"
+
+
+def test_redireccion_propia_en_ambos_modos(c, modo):
+    r = c.get(f"/{modo}/salir", params={"siguiente": "/perfil"}, follow_redirects=False)
+    assert r.headers["location"] == "/perfil"
+
+
+def test_cabeceras_de_seguridad_solo_en_endurecida(c):
+    assert "x-frame-options" not in c.get("/vulnerable/inicio").headers
+    h = c.get("/endurecida/inicio").headers
+    assert h["x-frame-options"] == "DENY" and "frame-ancestors 'none'" in h["content-security-policy"]
+    assert h["x-content-type-options"] == "nosniff"

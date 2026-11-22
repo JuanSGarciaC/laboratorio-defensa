@@ -6,3 +6,4 @@ services:
     ports: ["${LAB_PORT:-8095}:8000"]
     environment:
       OBJETIVO_EXPUESTO: "${OBJETIVO_EXPUESTO:-false}"
+      LIMITE_POR_MINUTO: "${LIMITE_POR_MINUTO:-30}"

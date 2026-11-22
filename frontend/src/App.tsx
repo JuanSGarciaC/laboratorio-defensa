@@ -1,12 +1,19 @@
 import { useEffect, useState } from "react";
-import { getAtaques, getMatriz, lanzar } from "./api";
-import Carril, { NOMBRE } from "./Carril";
-import type { Ataque, Ejecucion, FilaMatriz, Modo, Paso } from "./types";
+import { type Ajustes, getAtaques, getMatriz, lanzar } from "./api";
+import Consola from "./Consola";
+import { Briefing, Conclusion } from "./Explicacion";
+import Guia, { guiaVista } from "./Guia";
+import Network, { type Seleccion } from "./Network";
+import { useScramble } from "./scramble";
+import Topologia from "./Topologia";
+import type { Ataque, Ejecucion, FilaMatriz, Modo } from "./types";
 
 const MODOS: Modo[] = ["vulnerable", "endurecida"];
-const PESTANAS = ["Peticiones", "Código", "Matriz"] as const;
+const PESTANAS = ["Network", "Matriz"] as const;
 type Pestana = (typeof PESTANAS)[number];
 type Duelo = Record<Modo, Ejecucion>;
+type Vista = "ambas" | Modo;
+const VISTAS: { v: Vista; texto: string }[] = [{ v: "ambas", texto: "Ambas" }, { v: "vulnerable", texto: "Solo vulnerable" }, { v: "endurecida", texto: "Solo endurecida" }];
 
 function trackPointer(e: React.PointerEvent) {
   const el = (e.target as HTMLElement).closest<HTMLElement>(".glow");
@@ -18,21 +25,23 @@ function trackPointer(e: React.PointerEvent) {
 
 const sinMovimiento = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-function peticion(p: Paso, modo: Modo) {
-  const consulta = Object.entries(p.params).map(([k, v]) => `${k}=${v}`).join("&");
-  return `${p.metodo} /${modo}${p.ruta}${consulta ? `?${consulta}` : ""}${p.cuerpo ? `\n${JSON.stringify(p.cuerpo)}` : ""}`;
-}
-
 export default function App() {
   const [ataques, setAtaques] = useState<Ataque[] | null>(null);
   const [matriz, setMatriz] = useState<FilaMatriz[]>([]);
   const [id, setId] = useState("");
   const [duelo, setDuelo] = useState<Duelo | null>(null);
   const [hechos, setHechos] = useState(0); // peticiones ya reproducidas
-  const [elegido, setElegido] = useState<number | null>(null); // petición que el usuario quiere mirar
-  const [pestana, setPestana] = useState<Pestana>("Peticiones");
+  const [elegida, setElegida] = useState<Seleccion | null>(null); // fila de Network que el usuario quiere mirar
+  const [pestana, setPestana] = useState<Pestana>("Network");
   const [pidiendo, setPidiendo] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [pausa, setPausa] = useState(false);
+  const [rapido, setRapido] = useState(false);
+  const [vista, setVista] = useState<Vista>("ambas");
+  const [guia, setGuia] = useState(() => !guiaVista());
+  const [intentos, setIntentos] = useState("");
+  const [diccionario, setDiccionario] = useState("");
+  const [banderas, setBanderas] = useState(""); // ajustes del último lanzamiento, para el comando de la terminal
 
   useEffect(() => {
     Promise.all([getAtaques(), getMatriz()])
@@ -41,26 +50,39 @@ export default function App() {
   }, []);
 
   const total = duelo ? Math.max(...MODOS.map((m) => duelo[m].pasos.length)) : 0;
-  const ritmo = sinMovimiento() ? 0 : total > 8 ? 160 : 700;
+  const ritmo = sinMovimiento() ? 0 : (total > 8 ? 320 : 900) / (rapido ? 4 : 1);
   const reproduciendo = !!duelo && hechos < total;
 
   // Reproduce dos ejecuciones ya terminadas, a la par: los pasos son reales, el ritmo es de presentación.
   useEffect(() => {
-    if (!reproduciendo) return;
+    if (!reproduciendo || pausa) return;
     const t = setTimeout(() => setHechos((h) => h + 1), ritmo);
     return () => clearTimeout(t);
-  }, [reproduciendo, hechos, ritmo]);
+  }, [reproduciendo, pausa, hechos, ritmo]);
 
-  const limpiar = () => { setDuelo(null); setHechos(0); setElegido(null); setError(null); };
+  const marca = useScramble("Laboratorio de defensa");
+  const titulo = useScramble(ataques?.find((a) => a.id === id)?.nombre ?? "");
+
+  const limpiar = () => { setDuelo(null); setHechos(0); setElegida(null); setError(null); };
+
+  // B9: solo para ataques que lo admiten. El backend valida los límites; aquí solo se recoge lo escrito.
+  function leerAjustes(): Ajustes | undefined {
+    if (!ataques?.find((a) => a.id === id)?.variable) return undefined;
+    const lista = diccionario.split("\n").map((l) => l.trim()).filter(Boolean);
+    const a: Ajustes = { ...(intentos.trim() && { intentos: Number(intentos) }), ...(lista.length && { diccionario: lista }) };
+    return Object.keys(a).length ? a : undefined;
+  }
 
   async function onLanzar() {
     limpiar();
     setPidiendo(true);
     try {
+      const ajustes = leerAjustes();
       // La misma carga contra las dos versiones.
-      const [vulnerable, endurecida] = await Promise.all(MODOS.map((m) => lanzar(id, m)));
+      const [vulnerable, endurecida] = await Promise.all(MODOS.map((m) => lanzar(id, m, ajustes)));
+      setBanderas([ajustes?.intentos && `--intentos ${ajustes.intentos}`, ajustes?.diccionario && `--diccionario propio(${ajustes.diccionario.length})`].filter(Boolean).join(" "));
       setDuelo({ vulnerable, endurecida });
-      setPestana("Peticiones");
+      setPestana("Network");
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -80,27 +102,29 @@ export default function App() {
 
   const ocupado = pidiendo || reproduciendo;
   const fin = !!duelo && !reproduciendo;
-  // Petición a la vista: la elegida; si no, la que decidió el ataque al terminar o la última reproducida.
-  const decisiva = duelo ? MODOS.flatMap((m) => duelo[m].pasos.filter((p) => p.cumple).map((p) => p.n - 1))[0] : undefined;
-  const vista = elegido ?? (fin ? decisiva ?? total - 1 : hechos - 1);
+  const modos = vista === "ambas" ? MODOS : [vista];
+  // Fila a la vista: la elegida; si no, la petición que decidió el ataque al terminar o la última reproducida.
+  const decisiva = duelo && modos.flatMap((m) => duelo[m].pasos.filter((p) => p.cumple).map((p) => ({ modo: m, n: p.n })))[0];
+  const sel = (elegida && modos.includes(elegida.modo) ? elegida : null) ?? (fin ? decisiva || { modo: modos[0], n: total } : hechos ? { modo: modos[0], n: hechos } : null);
 
   return (
     <div className="shell" onPointerMove={trackPointer}>
       <aside className="lateral">
         <div className="brand">
-          <h1>Laboratorio de defensa</h1>
+          <h1><span className="sr-only">Laboratorio de defensa</span><span aria-hidden="true">{marca}</span></h1>
           <p>Ataques reales contra una aplicación propia. Ninguna petición sale de este servidor.</p>
+          <button className="ver-guia" onClick={() => setGuia(true)} disabled={guia}>? Ver la guía</button>
         </div>
 
         <div>
           <h2 className="eyebrow" id="h-ataques">Ataque</h2>
           <div className="ataques" role="group" aria-labelledby="h-ataques">
-            {ataques.map((a) => {
+            {ataques.map((a, i) => {
               const fila = matriz.find((f) => f.ataque === a.id);
               return (
-                <button key={a.id} className="ataque glow" aria-pressed={a.id === id} disabled={ocupado} onClick={() => { setId(a.id); limpiar(); }}>
+                <button key={a.id} className="ataque glow entra" style={{ "--i": i } as React.CSSProperties} aria-pressed={a.id === id} disabled={ocupado} onClick={() => { setId(a.id); limpiar(); }}>
                   <strong>{a.nombre}</strong>
-                  <span className="etiquetas">{a.owasp.split(" ")[0]} · ATT&amp;CK {a.attack}</span>
+                  <span className="etiquetas">{a.cwe} · ATT&amp;CK {a.attack}</span>
                   {fila && (
                     <span className="marcador">
                       <span className={fila.vulnerable ? "v-exito" : "v-fallo"}>Vulnerable: {fila.vulnerable ? "entra" : "resiste"}</span>
@@ -113,6 +137,23 @@ export default function App() {
           </div>
         </div>
 
+        {ataque.variable && (
+          <details className="ajustes">
+            <summary>Ajustes del ataque</summary>
+            <label>
+              Intentos <span className="muted">(1–50)</span>
+              <input type="number" min={1} max={50} inputMode="numeric" value={intentos} placeholder={String(ataque.n_peticiones)}
+                onChange={(e) => setIntentos(e.target.value)} disabled={ocupado} />
+            </label>
+            <label>
+              Diccionario de «{ataque.variable}» <span className="muted">(uno por línea, máx. 50 de 32 caracteres)</span>
+              <textarea rows={4} value={diccionario} placeholder={"123456\nadmin\ndragon2024"} spellCheck={false}
+                onChange={(e) => setDiccionario(e.target.value)} disabled={ocupado} />
+            </label>
+            <p className="muted">Vacío: las {ataque.n_peticiones} del catálogo. Solo cambia la {ataque.variable}: la ruta y el destino son fijos.</p>
+          </details>
+        )}
+
         <div className="accion">
           <button className="primary" onClick={() => void onLanzar()} disabled={ocupado}>{ocupado ? "Lanzando…" : "Lanzar contra las dos"}</button>
           <p className="muted">La misma carga, a la vez, contra la versión vulnerable y la endurecida.</p>
@@ -121,71 +162,44 @@ export default function App() {
 
       <main className="main">
         <header className="cabecera">
-          <h2>{ataque.nombre}</h2>
-          <p className="muted descripcion">{ataque.descripcion}</p>
-          <p className="chips"><span className="chip">{ataque.owasp}</span><span className="chip">MITRE ATT&amp;CK {ataque.attack}</span></p>
+          {/* El lector de pantalla oye el nombre; los signos del descifrado son solo visuales. */}
+          <h2><span className="sr-only">{ataque.nombre}</span><span aria-hidden="true">{titulo}</span></h2>
+          <p className="chips"><span className="chip">{ataque.owasp}</span><span className="chip">{ataque.cwe}</span><span className="chip">MITRE ATT&amp;CK {ataque.attack}</span></p>
         </header>
+        <Briefing ataque={ataque} />
         {error && <p className="error" role="alert">{error}</p>}
 
-        <div className="carriles">
-          {MODOS.map((m) => <Carril key={m} modo={m} ataque={ataque} ej={duelo?.[m] ?? null} hechos={hechos} ritmo={ritmo} />)}
-        </div>
+        <section className="banco glow" aria-label="Banco de pruebas">
+          <div className="controles" role="toolbar" aria-label="Reproducción">
+            <button onClick={() => setPausa((p) => !p)} aria-pressed={pausa}>{pausa ? "▶ Seguir" : "❚❚ Pausa"}</button>
+            <button onClick={() => setHechos((h) => Math.min(h + 1, total))} disabled={!pausa || !reproduciendo}>Paso ▸</button>
+            <button onClick={() => setRapido((r) => !r)} aria-pressed={rapido} aria-label={`Velocidad ${rapido ? "4×" : "1×"}`}>{rapido ? "4×" : "1×"}</button>
+            <span className="separador" />
+            <span role="group" aria-label="Versiones a la vista" className="segmentos">
+              {VISTAS.map(({ v, texto }) => <button key={v} aria-pressed={vista === v} onClick={() => setVista(v)}>{texto}</button>)}
+            </span>
+          </div>
+          <div className="topologia">
+            {modos.map((m) => <Topologia key={m} modo={m} ataque={ataque} ej={duelo?.[m] ?? null} hechos={hechos} />)}
+          </div>
+          <Consola ataque={ataque} duelo={duelo} hechos={hechos} modos={modos} banderas={banderas} />
+        </section>
+
+        <Conclusion ataque={ataque} duelo={fin ? duelo : null} />
 
         <section className="detalle">
           <div className="tabs" role="tablist" aria-label="Detalle">
             {PESTANAS.map((p) => (
               <button key={p} role="tab" id={`tab-${p}`} aria-selected={pestana === p} aria-controls="panel-detalle" onClick={() => setPestana(p)}>
-                {p}{p === "Peticiones" && duelo ? ` · ${total}` : ""}
+                {p}{p === "Network" && duelo ? ` · ${Math.min(hechos, total) * modos.length}` : ""}
               </button>
             ))}
           </div>
 
-          <div className="panel glow" role="tabpanel" id="panel-detalle" aria-labelledby={`tab-${pestana}`}>
-            {pestana === "Peticiones" && (!duelo || hechos === 0 ? (
-              <p className="muted hueco">Lanza el ataque para ver cada petición y lo que respondió cada versión.</p>
-            ) : (
-              <div className="dos">
-                {MODOS.map((m) => {
-                  const pasos = duelo[m].pasos.slice(0, hechos);
-                  const p = pasos[Math.min(vista, pasos.length - 1)];
-                  return (
-                    <div key={m} className={`columna col-${m}`}>
-                      <h4>{NOMBRE[m]}</h4>
-                      <div className="pasos">
-                        {pasos.map((x, i) => (
-                          <button key={x.n} className={`paso${x.cumple ? " cumple" : ""}`} aria-pressed={p?.n === x.n} onClick={() => setElegido(i)}
-                            aria-label={`${NOMBRE[m]}, petición ${x.n}: respuesta ${x.estado}${x.cumple ? ", cumple la prueba de éxito" : ""}`}>
-                            {x.estado}
-                          </button>
-                        ))}
-                      </div>
-                      {p && (
-                        <>
-                          <h5>Petición {p.n}</h5>
-                          <pre>{peticion(p, m)}</pre>
-                          <h5>Respuesta · {p.estado}{p.cumple ? " · cumple la prueba de éxito" : ""}</h5>
-                          <pre className={p.cumple ? "cumple" : undefined}>{p.respuesta}</pre>
-                        </>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            ))}
-
-            {pestana === "Código" && (
-              <>
-                <p className="muted hueco">Es el código que se ejecuta, leído del propio programa.</p>
-                <div className="dos">
-                  {MODOS.map((m) => (
-                    <div key={m} className={`columna col-${m}`}>
-                      <h4>{NOMBRE[m]}</h4>
-                      <pre>{ataque.codigo[m]}</pre>
-                    </div>
-                  ))}
-                </div>
-              </>
-            )}
+          <div className="panel" role="tabpanel" id="panel-detalle" aria-labelledby={`tab-${pestana}`}>
+            {pestana === "Network" && (!duelo || hechos === 0
+              ? <p className="muted">Lanza el ataque para ver cada petición HTTP y lo que respondió cada versión.</p>
+              : <Network duelo={duelo} hechos={hechos} modos={modos} sel={sel} onSel={setElegida} />)}
 
             {pestana === "Matriz" && (
               <>
@@ -193,8 +207,8 @@ export default function App() {
                 <table data-testid="matriz">
                   <thead><tr><th scope="col">Ataque</th><th scope="col">Vulnerable</th><th scope="col">Endurecida</th></tr></thead>
                   <tbody>
-                    {matriz.map((f) => (
-                      <tr key={f.ataque} className={f.ataque === id ? "actual" : undefined}>
+                    {matriz.map((f, i) => (
+                      <tr key={f.ataque} className={`entra${f.ataque === id ? " actual" : ""}`} style={{ "--i": i } as React.CSSProperties}>
                         <th scope="row">{f.nombre}</th>
                         {MODOS.map((m) => <td key={m} className={f[m] ? "v-exito" : "v-fallo"}>{f[m] ? "Tuvo éxito" : "No tuvo éxito"}</td>)}
                       </tr>
@@ -206,6 +220,7 @@ export default function App() {
           </div>
         </section>
       </main>
+      {guia && <Guia onCerrar={() => setGuia(false)} />}
     </div>
   );
 }
